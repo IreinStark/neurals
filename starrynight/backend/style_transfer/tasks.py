@@ -6,8 +6,10 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.files.storage import default_storage
 
+from .apps import StyleTransferConfig
+from .fast_style.api import stlye_transfer
+from .fast_style.stylize import load_model
 from .reco.style_catalog import resolve_style_model
-from .reco.reco_infer import stylize_video
 
 JOB_TTL_SECONDS = 3600
 
@@ -34,6 +36,72 @@ def _friendly_error(exc: Exception) -> str:
     return message or "Processing failed due to an unexpected error."
 
 
+def _process_webcam_video_fast(
+    input_abs: str,
+    output_abs: str,
+    model_path: str,
+    progress_callback,
+) -> None:
+    from math import ceil
+
+    import cv2
+
+    capture = cv2.VideoCapture(input_abs)
+    if not capture.isOpened():
+        capture.release()
+        raise ValueError(
+            "Unable to open input video. Use a browser-recorded WebM/MP4 file with supported codecs."
+        )
+
+    fps = capture.get(cv2.CAP_PROP_FPS)
+    if not fps or fps <= 0:
+        fps = 24.0
+    total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+
+    target_fps = 8.0
+    sample_stride = max(1, int(ceil(float(fps) / target_fps))) if fps > target_fps else 1
+    output_fps = max(1.0, float(fps) / sample_stride)
+    frame_size = (640, 360)
+
+    writer = None
+    for fourcc_text in ("avc1", "mp4v", "MJPG"):
+        candidate = cv2.VideoWriter(
+            output_abs,
+            cv2.VideoWriter_fourcc(*fourcc_text),
+            output_fps,
+            frame_size,
+        )
+        if candidate.isOpened():
+            writer = candidate
+            break
+        candidate.release()
+
+    if writer is None:
+        capture.release()
+        raise ValueError(f"Unable to open output video writer: {output_abs}")
+
+    model = StyleTransferConfig.get_loaded_model(model_path)
+
+    frames_seen = 0
+    try:
+        while True:
+            ok, frame_bgr = capture.read()
+            if not ok:
+                break
+            frames_seen += 1
+            if sample_stride > 1 and (frames_seen - 1) % sample_stride != 0:
+                progress_callback(frames_seen, total_frames)
+                continue
+
+            resized = cv2.resize(frame_bgr, frame_size, interpolation=cv2.INTER_AREA)
+            styled = stlye_transfer(model=model, content=resized).clip(0, 255).astype("uint8")
+            writer.write(styled)
+            progress_callback(frames_seen, total_frames)
+    finally:
+        capture.release()
+        writer.release()
+
+
 @shared_task(bind=True, soft_time_limit=60 * 58, time_limit=60 * 60)
 def process_webcam_video(self, job_id: str, temp_path: str, style: Optional[str] = None) -> None:
     try:
@@ -53,7 +121,12 @@ def process_webcam_video(self, job_id: str, temp_path: str, style: Optional[str]
                 progress = min(99, frames_done % 100)
             _update_job(job_id, status="processing", progress=progress)
 
-        stylize_video(input_abs, output_abs, model_path, progress_callback=on_progress)
+        _process_webcam_video_fast(
+            input_abs,
+            output_abs,
+            model_path,
+            progress_callback=on_progress,
+        )
         _update_job(
             job_id,
             status="completed",

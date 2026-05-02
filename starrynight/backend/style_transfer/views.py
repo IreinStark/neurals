@@ -30,9 +30,29 @@ def _job_key(job_id):
     return f"job_{job_id}"
 
 
+def _webcam_task_mode() -> str:
+    configured = str(getattr(settings, "WEBCAM_VIDEO_TASK_MODE", "")).strip().lower()
+    if configured in {"celery", "thread"}:
+        return configured
+    return "thread" if settings.DEBUG else "celery"
+
+
+def _dispatch_webcam_job(job_id: str, temp_path: str, selected_style: str) -> str:
+    if _webcam_task_mode() == "celery":
+        process_webcam_video.delay(job_id, temp_path, selected_style)
+        return "celery"
+
+    Thread(
+        target=process_webcam_video.run,
+        args=(job_id, temp_path, selected_style),
+        daemon=True,
+    ).start()
+    return "thread"
+
+
 @api_view(["GET"])
 def get_models(request):
-    return Response(StyleTransferConfig.model_paths)
+    return Response(StyleTransferConfig.refresh_model_paths())
 
 
 @api_view(["GET"])
@@ -63,7 +83,7 @@ def stylize_image_view(request):
 
         img = cv2.resize(img, (400, 300), interpolation=cv2.INTER_AREA)
         for model_path in model_paths:
-            loaded_model = StyleTransferConfig.models.get(model_path)
+            loaded_model = StyleTransferConfig.get_loaded_model(model_path)
             if loaded_model is None:
                 return Response({"error": f"Model not found: {model_path}"}, status=400)
 
@@ -156,19 +176,21 @@ def webcam_video_view(request):
     )
 
     try:
-        process_webcam_video.delay(job_id, temp_path, selected_style)
+        execution_mode = _dispatch_webcam_job(job_id, temp_path, selected_style)
     except Exception:
-        # Dev fallback when broker is unavailable.
+        # If Celery or the broker is unavailable, keep local development usable.
         Thread(
             target=process_webcam_video.run,
             args=(job_id, temp_path, selected_style),
             daemon=True,
         ).start()
+        execution_mode = "thread"
     return JsonResponse(
         {
             "job_id": job_id,
             "status": "queued",
             "style": selected_style,
+            "execution_mode": execution_mode,
             "message": "Video queued for processing",
         }
     )

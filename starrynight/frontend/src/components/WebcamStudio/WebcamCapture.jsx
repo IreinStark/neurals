@@ -5,13 +5,14 @@ const WebcamCapture = ({
   onStreamReady,
   captureInterval = 50,
   width = 640,
-  height = 480,
+  height = 360,
   previewWidth = 640,
   previewHeight = 360,
 }) => {
   const videoRef = useRef(null);
   const frameCanvasRef = useRef(null);
-  const timerRef = useRef(null);
+  const animationFrameRef = useRef(null);
+  const lastFrameTimeRef = useRef(0);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -20,7 +21,14 @@ const WebcamCapture = ({
     const start = async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { width, height },
+          video: {
+            width,
+            height,
+            frameRate: {
+              ideal: 10,
+              max: 12,
+            },
+          },
           audio: false,
         });
         setError("");
@@ -33,19 +41,28 @@ const WebcamCapture = ({
           onStreamReady(stream);
         }
 
-        timerRef.current = window.setInterval(() => {
-          if (!videoRef.current || !frameCanvasRef.current) {
+        const drawLoop = (timestamp) => {
+          const video = videoRef.current;
+          const frameCanvas = frameCanvasRef.current;
+          if (!video || !frameCanvas) {
+            animationFrameRef.current = window.requestAnimationFrame(drawLoop);
             return;
           }
-          const ctx = frameCanvasRef.current.getContext("2d");
-          if (!ctx) {
-            return;
+          if (timestamp - lastFrameTimeRef.current >= captureInterval && video.readyState >= 2) {
+            const ctx = frameCanvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(video, 0, 0, previewWidth, previewHeight);
+              if (onFrame) {
+                onFrame(frameCanvas);
+              }
+            }
+            lastFrameTimeRef.current = timestamp;
           }
-          ctx.drawImage(videoRef.current, 0, 0, previewWidth, previewHeight);
-          if (onFrame) {
-            onFrame(frameCanvasRef.current);
-          }
-        }, captureInterval);
+          animationFrameRef.current = window.requestAnimationFrame(drawLoop);
+        };
+
+        lastFrameTimeRef.current = 0;
+        animationFrameRef.current = window.requestAnimationFrame(drawLoop);
       } catch (err) {
         setError("Webcam access denied or unavailable.");
       }
@@ -54,8 +71,8 @@ const WebcamCapture = ({
     start();
 
     return () => {
-      if (timerRef.current) {
-        window.clearInterval(timerRef.current);
+      if (animationFrameRef.current) {
+        window.cancelAnimationFrame(animationFrameRef.current);
       }
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
@@ -87,4 +104,3 @@ const WebcamCapture = ({
 };
 
 export default WebcamCapture;
-

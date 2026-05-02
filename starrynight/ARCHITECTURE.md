@@ -114,6 +114,14 @@ python3.11 scripts/verify_models.py
 
 Run from `starrynight/backend`:
 
+For local development, webcam jobs default to `WEBCAM_VIDEO_TASK_MODE=thread` while `DEBUG=True`, so `python3.11 manage.py runserver` is enough to exercise uploads end to end. Switch to Celery explicitly when you want the distributed worker path:
+
+```bash
+export WEBCAM_VIDEO_TASK_MODE=celery
+```
+
+Only the Celery mode needs Redis + a worker:
+
 ```bash
 # ensure shared status cache across Django + Celery
 export CACHE_BACKEND=redis

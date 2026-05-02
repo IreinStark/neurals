@@ -6,10 +6,11 @@ const RecordControls = ({
   maxDurationMs = 30000,
   onStartRecording,
   onStopRecording,
-  onProcessFullQuality,
-  canProcess,
   statusText,
   isProcessing,
+  actionLabel,
+  onAction,
+  canAction,
 }) => {
   const seconds = Math.floor(recordingTimeMs / 1000);
   const maxSeconds = Math.floor(maxDurationMs / 1000);
@@ -33,18 +34,21 @@ const RecordControls = ({
         >
           Stop Recording
         </button>
-        <button
-          type="button"
-          className="btn btn-primary mb-2"
-          disabled={!canProcess || isRecording || isProcessing}
-          onClick={onProcessFullQuality}
-        >
-          Process Full Quality
-        </button>
+        {actionLabel && onAction ? (
+          <button
+            type="button"
+            className="btn btn-primary mb-2"
+            disabled={!canAction || isRecording || isProcessing}
+            onClick={onAction}
+          >
+            {actionLabel}
+          </button>
+        ) : null}
       </div>
       <p className="mb-1">
         Record: {seconds}s / {maxSeconds}s
       </p>
+      <p className="mb-1 text-muted">Best results: keep webcam clips short so processing can finish quickly.</p>
       <p className="mb-0">Status: {statusText}</p>
     </div>
   );

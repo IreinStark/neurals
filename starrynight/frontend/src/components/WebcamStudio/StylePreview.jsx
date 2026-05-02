@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import * as ort from "onnxruntime-web";
 
 const StylePreview = ({
   modelUrl = "/models/pointilism-10.onnx",
   width = 640,
   height = 360,
+  onCanvasReady,
   onProcessorReady,
   onStyledFrame,
 }) => {
@@ -15,7 +16,28 @@ const StylePreview = ({
   const [status, setStatus] = useState("loading");
   const [statusMessage, setStatusMessage] = useState("Loading ONNX preview model...");
 
-  const drawFallback = (sourceCanvas) => {
+  const createPreviewSession = useCallback(async () => {
+    const providerAttempts = [
+      { name: "webgl", executionProviders: ["webgl"] },
+      { name: "wasm", executionProviders: ["wasm"] },
+    ];
+    const failures = [];
+
+    for (const provider of providerAttempts) {
+      try {
+        const session = await ort.InferenceSession.create(modelUrl, {
+          executionProviders: provider.executionProviders,
+        });
+        return { provider: provider.name, session };
+      } catch (err) {
+        failures.push(`${provider.name}: ${err?.message || "unknown error"}`);
+      }
+    }
+
+    throw new Error(failures.join(" | "));
+  }, [modelUrl]);
+
+  const drawFallback = useCallback((sourceCanvas) => {
     const target = displayCanvasRef.current;
     if (!target || !sourceCanvas) {
       return;
@@ -27,9 +49,9 @@ const StylePreview = ({
     ctx.filter = "grayscale(1)";
     ctx.drawImage(sourceCanvas, 0, 0, width, height);
     ctx.filter = "none";
-  };
+  }, [height, width]);
 
-  const runModel = async (sourceCanvas) => {
+  const runModel = useCallback(async (sourceCanvas) => {
     const targetCanvas = displayCanvasRef.current;
     const session = sessionRef.current;
     if (!targetCanvas || !session) {
@@ -109,29 +131,28 @@ const StylePreview = ({
       return;
     }
     ctx.drawImage(outCanvas, 0, 0, width, height);
-  };
+  }, [drawFallback, height, width]);
 
   useEffect(() => {
     let mounted = true;
     const init = async () => {
       try {
         setStatus("loading");
-        setStatusMessage("Loading ONNX preview model...");
-        const session = await ort.InferenceSession.create(modelUrl, {
-          executionProviders: ["wasm"],
-        });
+        setStatusMessage("Loading live preview model...");
+        ort.env.wasm.numThreads = 1;
+        const { provider, session } = await createPreviewSession();
         if (!mounted) {
           return;
         }
         sessionRef.current = session;
         setStatus("ready");
-        setStatusMessage("ONNX preview ready");
+        setStatusMessage(`Live preview ready (${provider})`);
       } catch (err) {
         if (!mounted) {
           return;
         }
         setStatus("fallback");
-        setStatusMessage("ONNX preview unavailable, using fallback mode");
+        setStatusMessage(err?.message || "ONNX preview unavailable, using fallback mode");
       }
     };
     init();
@@ -139,7 +160,18 @@ const StylePreview = ({
       mounted = false;
       sessionRef.current = null;
     };
-  }, [modelUrl]);
+  }, [createPreviewSession]);
+
+  useEffect(() => {
+    if (onCanvasReady) {
+      onCanvasReady(displayCanvasRef.current);
+    }
+    return () => {
+      if (onCanvasReady) {
+        onCanvasReady(null);
+      }
+    };
+  }, [onCanvasReady]);
 
   useEffect(() => {
     const processFrame = async (sourceCanvas) => {
@@ -170,7 +202,7 @@ const StylePreview = ({
         onProcessorReady(null);
       }
     };
-  }, [onProcessorReady, onStyledFrame]);
+  }, [drawFallback, onProcessorReady, onStyledFrame, runModel]);
 
   return (
     <div>
@@ -181,11 +213,11 @@ const StylePreview = ({
         style={{ width: "100%", borderRadius: "8px", background: "#111" }}
       />
       <small className="text-muted">
-        Preview model status:{" "}
+        Live model status:{" "}
         {status === "loading"
           ? "Loading"
           : status === "ready"
-            ? "ONNX ready"
+            ? "Live ready"
             : "Fallback mode"}{" "}
         ({statusMessage})
       </small>

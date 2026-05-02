@@ -9,6 +9,7 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv*/
 venv/
 env/
 
@@ -17,6 +18,8 @@ db.sqlite3
 */db.sqlite3
 media/
 */media/
+.cache/
+*/.cache/
 
 # Frontend
 node_modules/

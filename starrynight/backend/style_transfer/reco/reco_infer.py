@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from math import ceil
 from pathlib import Path
 from typing import Callable, Dict, Mapping, Optional, Tuple, Union
 
@@ -152,7 +153,7 @@ def _open_video_writer(
     fps: float,
     frame_size: Tuple[int, int],
 ) -> cv2.VideoWriter:
-    for fourcc_text in ("mp4v", "avc1", "MJPG"):
+    for fourcc_text in ("avc1", "mp4v", "MJPG"):
         fourcc = cv2.VideoWriter_fourcc(*fourcc_text)
         writer = cv2.VideoWriter(output_path, fourcc, fps, frame_size)
         if writer.isOpened():
@@ -166,6 +167,7 @@ def stylize_video(
     output_path: Union[str, Path],
     model: Union[str, Path, nn.Module],
     progress_callback: Optional[Callable[[int, int], None]] = None,
+    target_fps: Optional[float] = None,
 ) -> Dict[str, Union[str, int, float, Tuple[int, int]]]:
     """
     Stream stylization for videos.
@@ -190,17 +192,29 @@ def stylize_video(
     if not fps or fps <= 0:
         fps = DEFAULT_FPS
     total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    sample_stride = 1
+    output_fps = float(fps)
+    if target_fps and target_fps > 0 and fps > target_fps:
+        sample_stride = max(1, int(ceil(fps / target_fps)))
+        output_fps = max(1.0, float(fps) / sample_stride)
 
     width, height = DEFAULT_FRAME_SIZE
-    writer = _open_video_writer(output_path, fps, (width, height))
+    writer = _open_video_writer(output_path, output_fps, (width, height))
 
     frames_processed = 0
+    frames_seen = 0
     try:
         with torch.no_grad():
             while True:
                 ok, frame_bgr = capture.read()
                 if not ok:
                     break
+                frames_seen += 1
+
+                if sample_stride > 1 and (frames_seen - 1) % sample_stride != 0:
+                    if progress_callback is not None:
+                        progress_callback(frames_seen, total_frames)
+                    continue
 
                 resized_bgr = cv2.resize(frame_bgr, (width, height), interpolation=cv2.INTER_AREA)
                 frame_rgb = cv2.cvtColor(resized_bgr, cv2.COLOR_BGR2RGB)
@@ -233,7 +247,7 @@ def stylize_video(
                 writer.write(styled_bgr)
                 frames_processed += 1
                 if progress_callback is not None:
-                    progress_callback(frames_processed, total_frames)
+                    progress_callback(frames_seen, total_frames)
     finally:
         capture.release()
         writer.release()
@@ -243,7 +257,8 @@ def stylize_video(
     return {
         "output_path": output_path,
         "frames_processed": frames_processed,
+        "frames_seen": frames_seen,
         "total_frames": total_frames,
-        "fps": float(fps),
+        "fps": float(output_fps),
         "resolution": (width, height),
     }

@@ -1,11 +1,21 @@
-opencv_python==4.5.1.48
-torchvision==0.10.1+cu111
-torch
-Django==3.2.6
-numpy==1.19.5
-matplotlib==3.3.4
-djangorestframework_simplejwt==4.8.0
-djangorestframework==3.12.4
-Pillow==8.4.0
-celery>=5.3,<6
-redis>=5,<6
+# Web framework
+Django==4.2.11
+djangorestframework==3.15.0
+django-cors-headers==4.3.1
+djangorestframework-simplejwt==5.3.1
+python-dotenv==1.0.1
+
+# Machine learning & vision
+torch==2.2.1
+torchvision==0.17.1
+opencv-python==4.9.0.80
+Pillow==10.1.0
+numpy==1.26.2
+matplotlib==3.8.2
+
+# Task processing
+celery==5.3.4
+redis==5.0.1
+
+# Utilities
+requests==2.31.0

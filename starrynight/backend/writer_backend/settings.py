@@ -25,15 +25,15 @@ SECRET_KEY = "django-insecure-o+p)_g!fyx!5a@&i-#@&@x(urrex&nh!61kehyg)gi+-38x3ci
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'http://localhost:3000']
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 CORS_ORIGIN_WHITELIST = (
-
-    'http://localhost:3000',
-
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 )
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 
 # Application definition
@@ -46,9 +46,10 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "accounts",
-    "style_transfer"
+    "style_transfer",
 ]
 
 REST_FRAMEWORK = {
@@ -157,19 +158,27 @@ elif CACHE_BACKEND == "file":
             "LOCATION": str(BASE_DIR / ".cache"),
         }
     }
-else:
+elif CACHE_BACKEND == "locmem":
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
             "LOCATION": "style-transfer-jobs",
         }
     }
+else:
+    raise ValueError(
+        "Unsupported CACHE_BACKEND value. Use one of: redis, file, locmem."
+    )
 
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 60 * 30
 CELERY_TASK_SOFT_TIME_LIMIT = 60 * 28
+WEBCAM_VIDEO_TASK_MODE = os.environ.get(
+    "WEBCAM_VIDEO_TASK_MODE",
+    "thread" if DEBUG else "celery",
+).strip().lower()
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field

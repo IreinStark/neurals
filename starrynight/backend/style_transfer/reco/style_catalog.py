@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-
-from .model_utils import preferred_reconet_model_path, resolve_existing_reconet_model
 
 DEFAULT_STYLE_ID = "starry-night"
 
@@ -12,7 +9,40 @@ STYLE_LABELS = {
     "starry-night": "Van Gogh - Starry Night",
     "mosaic": "Gaudi - Mosaic",
     "udnie": "Francis Picabia - Udnie",
-    "candy": "Pop Art - Candy",
+    "wave": "Hokusai - Great Wave",
+    "tokyo-ghoul": "Tokyo Ghoul",
+    "lazy": "Lazy Sunday",
+    "bayanihan": "Bayanihan",
+}
+
+STYLE_MODEL_CANDIDATES = {
+    "starry-night": [
+        ("models", "starry", "starry80.pth"),
+        ("models", "starry", "starry_dark.pth"),
+    ],
+    "mosaic": [
+        ("models", "mosiac", "mosaic_light.pth"),
+        ("models", "mosiac", "mosaic_aggressive.pth"),
+    ],
+    "udnie": [
+        ("models", "udnie_aggressive.pth"),
+    ],
+    "wave": [
+        ("models", "wave", "wave100.pth"),
+        ("models", "wave", "wave50.pth"),
+        ("models", "wave", "wave150.pth"),
+        ("models", "wave", "wave200.pth"),
+    ],
+    "tokyo-ghoul": [
+        ("models", "tokyo_ghoul", "tokyo_ghoul_light.pth"),
+        ("models", "tokyo_ghoul", "tokyo_ghoul_aggressive.pth"),
+    ],
+    "lazy": [
+        ("models", "lazy", "lazy250.pth"),
+    ],
+    "bayanihan": [
+        ("models", "bayanihan100.pth"),
+    ],
 }
 
 
@@ -24,49 +54,23 @@ def _label_for(style_id: str) -> str:
     return STYLE_LABELS.get(style_id, style_id.replace("-", " ").title())
 
 
-def _load_env_style_paths() -> Dict[str, Path]:
-    raw = os.environ.get("RECONET_STYLE_MODELS", "").strip()
-    if not raw:
-        return {}
-    parsed: Dict[str, Path] = {}
-    for pair in raw.split(","):
-        if "=" not in pair:
-            continue
-        key, value = pair.split("=", 1)
-        style_id = _normalize_style_id(key)
-        model_path = Path(value.strip()).expanduser().resolve(strict=False)
-        if style_id and value.strip():
-            parsed[style_id] = model_path
-    return parsed
-
-
-def _scan_style_directory(base_dir: Path) -> Dict[str, Path]:
-    style_dir = base_dir / "style_transfer" / "reco" / "styles"
-    if not style_dir.exists() or not style_dir.is_dir():
-        return {}
-    found: Dict[str, Path] = {}
-    for file_path in sorted(style_dir.glob("*.pth")):
-        style_id = _normalize_style_id(file_path.stem)
-        if style_id:
-            found[style_id] = file_path.resolve(strict=False)
-    return found
+def _resolve_candidate(base_dir: Path, candidate_parts: Tuple[str, ...]) -> Path:
+    return (base_dir / Path(*candidate_parts)).resolve(strict=False)
 
 
 def style_model_map(base_dir: Path) -> Dict[str, Path]:
     model_map: Dict[str, Path] = {}
+    for style_id, candidates in STYLE_MODEL_CANDIDATES.items():
+        for candidate in candidates:
+            model_path = _resolve_candidate(base_dir, candidate)
+            if model_path.exists() and model_path.is_file() and model_path.stat().st_size > 0:
+                model_map[style_id] = model_path
+                break
 
-    # Default style always points at the canonical ReCoNet checkpoint.
-    default_model = resolve_existing_reconet_model(base_dir)
-    if default_model:
-        model_map[DEFAULT_STYLE_ID] = Path(default_model).resolve(strict=False)
-
-    # Optional additional styles discovered from directory/env.
-    model_map.update(_scan_style_directory(base_dir))
-    model_map.update(_load_env_style_paths())
-
-    # If there is no resolved model at all yet, expose default expected path.
     if not model_map:
-        model_map[DEFAULT_STYLE_ID] = Path(preferred_reconet_model_path(base_dir)).resolve(strict=False)
+        # Expose at least the default expected path for clear API feedback.
+        first_default = STYLE_MODEL_CANDIDATES[DEFAULT_STYLE_ID][0]
+        model_map[DEFAULT_STYLE_ID] = _resolve_candidate(base_dir, first_default)
 
     return model_map
 

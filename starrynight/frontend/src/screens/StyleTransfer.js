@@ -29,7 +29,7 @@ function StyleTransferCarousel() {
   // Get available feed forward models
   async function getModels() {
     try {
-      const response = await axios.get("style_transfer/models/");
+      const response = await axios.get("/style_transfer/models/");
       var models_list = [];
       for (const [key, value] of Object.entries(response.data)) {
         models_list = models_list.concat(value);

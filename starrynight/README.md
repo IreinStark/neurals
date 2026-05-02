@@ -7,7 +7,7 @@ An application to train, experiment with, and deploy real-time style transfer mo
 
 # Installation
 
-1. Install python and node
+1. Install Python 3.9 and Node 16 or 18
 2. Install python dependencies using `pip install -r requirements.txt`
 3. cd into `frontend` and run `npm install`
 

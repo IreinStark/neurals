@@ -1,20 +1,29 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Container } from "react-bootstrap";
+import axios from "axios";
 
 import AlertBox from "../components/AlertBox";
 import WebcamCapture from "../components/WebcamStudio/WebcamCapture";
 import StylePreview from "../components/WebcamStudio/StylePreview";
 import RecordControls from "../components/WebcamStudio/RecordControls";
-import ProcessingStatus from "../components/WebcamStudio/ProcessingStatus";
 import VideoComparison from "../components/WebcamStudio/VideoComparison";
 import InlineSpinner from "../components/WebcamStudio/InlineSpinner";
 import ErrorAlert from "../components/WebcamStudio/ErrorAlert";
+import ProcessingStatus from "../components/WebcamStudio/ProcessingStatus";
 
 const CAPTURE_INTERVAL_MS = 50;
-const MAX_RECORDING_MS = 30000;
+const MAX_RECORDING_MS = 10000;
+const LIVE_CAPTURE_FPS = 15;
 const STATUS_POLL_INTERVAL_MS = 2000;
-const NETWORK_RETRY_SECONDS = 10;
-const MAX_NETWORK_RETRIES = 6;
+
+const LIVE_STYLE_OPTIONS = [
+  {
+    id: "pointillism-live",
+    label: "Pointillism Live",
+    modelUrl: "/models/pointilism-10.onnx",
+    description: "Live browser filter recorded directly from the styled canvas.",
+  },
+];
 
 const selectMimeType = () => {
   const options = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
@@ -28,33 +37,36 @@ const selectMimeType = () => {
 
 const WebcamStudio = () => {
   const [isAuth, setIsAuth] = useState(false);
-  const [statusText, setStatusText] = useState("Idle");
+  const [statusText, setStatusText] = useState("Live preview idle");
   const [errorText, setErrorText] = useState("");
   const [successText, setSuccessText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [networkRetryCountdown, setNetworkRetryCountdown] = useState(0);
-  const [styleOptions, setStyleOptions] = useState([]);
-  const [selectedStyle, setSelectedStyle] = useState("");
-  const [styleError, setStyleError] = useState("");
   const [recordingTimeMs, setRecordingTimeMs] = useState(0);
-  const [recordedBlob, setRecordedBlob] = useState(null);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState("");
-  const [processedVideoUrl, setProcessedVideoUrl] = useState("");
+  const [liveStyledVideoUrl, setLiveStyledVideoUrl] = useState("");
+  const [selectedStyle, setSelectedStyle] = useState(LIVE_STYLE_OPTIONS[0].id);
+  const [webcamStyles, setWebcamStyles] = useState([]);
+  const [selectedProcessingStyle, setSelectedProcessingStyle] = useState("");
   const [jobId, setJobId] = useState("");
-  const [jobStatus, setJobStatus] = useState({
-    status: "idle",
-    progress: 0,
-    error: null,
-  });
+  const [jobStatus, setJobStatus] = useState("idle");
+  const [jobProgress, setJobProgress] = useState(0);
+  const [jobError, setJobError] = useState("");
+  const [processedVideoUrl, setProcessedVideoUrl] = useState("");
 
   const streamRef = useRef(null);
+  const styledCanvasRef = useRef(null);
   const styleProcessorRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const chunksRef = useRef([]);
+  const mediaRecordersRef = useRef({ raw: null, styled: null });
+  const styledCaptureStreamRef = useRef(null);
+  const recordingSessionRef = useRef(0);
+  const rawChunksRef = useRef([]);
+  const styledChunksRef = useRef([]);
   const timerRef = useRef(null);
-  const pollTimeoutRef = useRef(null);
-  const retryCountdownRef = useRef(null);
+  const rawVideoUrlRef = useRef("");
+  const styledVideoUrlRef = useRef("");
+  const processedVideoUrlRef = useRef("");
+  const rawBlobRef = useRef(null);
+  const styledBlobRef = useRef(null);
 
   useEffect(() => {
     if (localStorage.getItem("userToken") !== null) {
@@ -63,68 +75,145 @@ const WebcamStudio = () => {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const fetchStyles = async () => {
+    let mounted = true;
+
+    const loadWebcamStyles = async () => {
       try {
-        const response = await fetch("/style_transfer/webcam-styles/");
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to load styles");
+        const response = await axios.get("/style_transfer/webcam-styles/");
+        if (!mounted) {
+          return;
         }
-        const styles = Array.isArray(data.styles) ? data.styles : [];
-        const enabledStyles = styles.filter((item) => item && item.available);
-        if (!cancelled) {
-          setStyleOptions(enabledStyles);
-          if (enabledStyles.length > 0) {
-            const defaultStyle = data.default_style;
-            const hasDefault = enabledStyles.some((item) => item.id === defaultStyle);
-            setSelectedStyle(hasDefault ? defaultStyle : enabledStyles[0].id);
-            setStyleError("");
-          } else {
-            setStyleError("No webcam styles are available.");
+        const styles = Array.isArray(response.data?.styles) ? response.data.styles : [];
+        const availableStyles = styles.filter((style) => style.available);
+        const defaultStyle = response.data?.default_style || "";
+        setWebcamStyles(availableStyles);
+        setSelectedProcessingStyle((current) => {
+          if (current && availableStyles.some((style) => style.id === current)) {
+            return current;
           }
+          if (defaultStyle && availableStyles.some((style) => style.id === defaultStyle)) {
+            return defaultStyle;
+          }
+          return availableStyles[0]?.id || "";
+        });
+      } catch (error) {
+        console.error("WEBCAM STYLES LOAD FAILED:", error);
+        if (!mounted) {
+          return;
         }
-      } catch (err) {
-        if (!cancelled) {
-          setStyleError(err.message || "Failed to load webcam styles.");
-        }
+        setErrorText("Could not load backend webcam styles.");
       }
     };
-    fetchStyles();
+
+    loadWebcamStyles();
+
     return () => {
-      cancelled = true;
+      mounted = false;
     };
   }, []);
 
-  useEffect(
-    () => () => {
-      if (recordedVideoUrl) {
-        URL.revokeObjectURL(recordedVideoUrl);
-      }
-    },
-    [recordedVideoUrl]
-  );
+  useEffect(() => {
+    if (jobId) {
+      console.log("Job submitted:", jobId);
+    }
+  }, [jobId]);
+
+  useEffect(() => {
+    if (jobStatus !== "idle") {
+      console.log("Status polled:", jobStatus, "progress:", jobProgress);
+    }
+  }, [jobProgress, jobStatus]);
+
+  useEffect(() => {
+    if (processedVideoUrl) {
+      console.log("Video URL received:", processedVideoUrl);
+    }
+  }, [processedVideoUrl]);
+
+  const updateVideoUrl = useCallback((urlRef, setter, blob) => {
+    if (urlRef.current) {
+      URL.revokeObjectURL(urlRef.current);
+      urlRef.current = "";
+    }
+    if (!blob) {
+      setter("");
+      return;
+    }
+    const nextUrl = URL.createObjectURL(blob);
+    urlRef.current = nextUrl;
+    setter(nextUrl);
+  }, []);
+
+  const setRemoteVideoUrl = useCallback((urlRef, setter, nextUrl) => {
+    if (urlRef.current && urlRef.current.startsWith("blob:")) {
+      URL.revokeObjectURL(urlRef.current);
+    }
+    urlRef.current = nextUrl || "";
+    setter(nextUrl || "");
+  }, []);
+
+  const resolveBackendMediaUrl = useCallback((videoUrl) => {
+    if (!videoUrl) {
+      return "";
+    }
+    if (/^https?:\/\//i.test(videoUrl)) {
+      return videoUrl;
+    }
+
+    const backendOrigin =
+      window.location.port === "3000" ? "http://127.0.0.1:8000" : window.location.origin;
+    return new URL(videoUrl, backendOrigin).toString();
+  }, []);
+
+  const resetProcessingState = useCallback(() => {
+    setJobId("");
+    setJobStatus("idle");
+    setJobProgress(0);
+    setJobError("");
+    setRemoteVideoUrl(processedVideoUrlRef, setProcessedVideoUrl, "");
+  }, [setRemoteVideoUrl]);
+
+  const stopActiveRecorders = useCallback(() => {
+    const { raw, styled } = mediaRecordersRef.current;
+    if (raw && raw.state !== "inactive") {
+      raw.stop();
+    }
+    if (styled && styled.state !== "inactive") {
+      styled.stop();
+    }
+  }, []);
 
   useEffect(
     () => () => {
       if (timerRef.current) {
         window.clearInterval(timerRef.current);
       }
-      if (pollTimeoutRef.current) {
-        window.clearTimeout(pollTimeoutRef.current);
-      }
-      if (retryCountdownRef.current) {
-        window.clearInterval(retryCountdownRef.current);
+      stopActiveRecorders();
+      if (styledCaptureStreamRef.current) {
+        styledCaptureStreamRef.current.getTracks().forEach((track) => track.stop());
       }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
+      if (rawVideoUrlRef.current) {
+        URL.revokeObjectURL(rawVideoUrlRef.current);
+      }
+      if (styledVideoUrlRef.current) {
+        URL.revokeObjectURL(styledVideoUrlRef.current);
+      }
+      if (processedVideoUrlRef.current && processedVideoUrlRef.current.startsWith("blob:")) {
+        URL.revokeObjectURL(processedVideoUrlRef.current);
+      }
     },
-    []
+    [stopActiveRecorders]
   );
 
   const onStreamReady = useCallback((stream) => {
     streamRef.current = stream;
+  }, []);
+
+  const onStyledCanvasReady = useCallback((canvas) => {
+    styledCanvasRef.current = canvas;
   }, []);
 
   const onProcessorReady = useCallback((processor) => {
@@ -142,17 +231,18 @@ const WebcamStudio = () => {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    const recorder = mediaRecorderRef.current;
-    if (recorder && recorder.state !== "inactive") {
-      recorder.stop();
-    }
+    stopActiveRecorders();
     setIsRecording(false);
-    setStatusText("Recording stopped");
-  }, []);
+    setStatusText("Finalizing live capture...");
+  }, [stopActiveRecorders]);
 
   const startRecording = useCallback(() => {
     if (!streamRef.current) {
       setErrorText("Webcam stream is not ready yet.");
+      return;
+    }
+    if (!styledCanvasRef.current || typeof styledCanvasRef.current.captureStream !== "function") {
+      setErrorText("Styled canvas capture is not available in this browser.");
       return;
     }
     if (!window.MediaRecorder) {
@@ -160,39 +250,92 @@ const WebcamStudio = () => {
       return;
     }
 
+    const mimeType = selectMimeType();
+    const sessionId = Date.now();
+    const recordingResult = {
+      rawDone: false,
+      styledDone: false,
+      rawBlob: null,
+      styledBlob: null,
+    };
+
+    const finalizeRecording = () => {
+      if (!recordingResult.rawDone || !recordingResult.styledDone) {
+        return;
+      }
+      mediaRecordersRef.current = { raw: null, styled: null };
+      rawBlobRef.current = recordingResult.rawBlob;
+      styledBlobRef.current = recordingResult.styledBlob;
+      updateVideoUrl(rawVideoUrlRef, setRecordedVideoUrl, recordingResult.rawBlob);
+      updateVideoUrl(styledVideoUrlRef, setLiveStyledVideoUrl, recordingResult.styledBlob);
+      resetProcessingState();
+      setStatusText("Live capture ready");
+      setSuccessText("Your raw and live preview captures are ready. You can now process the raw clip at full quality.");
+    };
+
+    const buildRecorder = (stream, chunkRef, onStop) => {
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          chunkRef.current.push(event.data);
+        }
+      };
+      recorder.onstop = onStop;
+      return recorder;
+    };
+
     setErrorText("");
     setSuccessText("");
-    setStatusText("Recording...");
-    setProcessedVideoUrl("");
-    setJobId("");
-    setJobStatus({ status: "idle", progress: 0, error: null });
+    setStatusText("Recording live styled output...");
     setRecordingTimeMs(0);
+    updateVideoUrl(rawVideoUrlRef, setRecordedVideoUrl, null);
+    updateVideoUrl(styledVideoUrlRef, setLiveStyledVideoUrl, null);
+    rawBlobRef.current = null;
+    styledBlobRef.current = null;
+    resetProcessingState();
 
-    chunksRef.current = [];
-    const mimeType = selectMimeType();
-    const recorder = mimeType
-      ? new MediaRecorder(streamRef.current, { mimeType })
-      : new MediaRecorder(streamRef.current);
-    mediaRecorderRef.current = recorder;
+    rawChunksRef.current = [];
+    styledChunksRef.current = [];
+    recordingSessionRef.current = sessionId;
 
-    recorder.ondataavailable = (event) => {
-      if (event.data && event.data.size > 0) {
-        chunksRef.current.push(event.data);
+    const styledStream = styledCanvasRef.current.captureStream(LIVE_CAPTURE_FPS);
+    styledCaptureStreamRef.current = styledStream;
+
+    const rawRecorder = buildRecorder(streamRef.current, rawChunksRef, () => {
+      if (recordingSessionRef.current !== sessionId) {
+        return;
       }
-    };
-    recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, {
-        type: recorder.mimeType || "video/webm",
-      });
-      if (recordedVideoUrl) {
-        URL.revokeObjectURL(recordedVideoUrl);
+      recordingResult.rawBlob =
+        rawChunksRef.current.length > 0
+          ? new Blob(rawChunksRef.current, { type: rawRecorder.mimeType || "video/webm" })
+          : null;
+      recordingResult.rawDone = true;
+      finalizeRecording();
+    });
+
+    const styledRecorder = buildRecorder(styledStream, styledChunksRef, () => {
+      if (recordingSessionRef.current !== sessionId) {
+        return;
       }
-      setRecordedBlob(blob);
-      setRecordedVideoUrl(URL.createObjectURL(blob));
-      setStatusText("Recording ready for full-quality processing");
+      styledStream.getTracks().forEach((track) => track.stop());
+      styledCaptureStreamRef.current = null;
+      recordingResult.styledBlob =
+        styledChunksRef.current.length > 0
+          ? new Blob(styledChunksRef.current, { type: styledRecorder.mimeType || "video/webm" })
+          : null;
+      recordingResult.styledDone = true;
+      finalizeRecording();
+    });
+
+    mediaRecordersRef.current = {
+      raw: rawRecorder,
+      styled: styledRecorder,
     };
 
-    recorder.start(500);
+    rawRecorder.start(250);
+    styledRecorder.start(250);
     setIsRecording(true);
 
     timerRef.current = window.setInterval(() => {
@@ -205,199 +348,144 @@ const WebcamStudio = () => {
         return next;
       });
     }, CAPTURE_INTERVAL_MS);
-  }, [recordedVideoUrl, stopRecording]);
+  }, [resetProcessingState, stopRecording, updateVideoUrl]);
 
-  const processFullQuality = useCallback(async () => {
-    if (!recordedBlob) {
-      setErrorText("Record a clip first.");
+  const submitForProcessing = useCallback(async () => {
+    if (!rawBlobRef.current) {
+      setErrorText("Record a webcam clip before requesting full-quality processing.");
       return;
     }
-    if (!selectedStyle) {
-      setErrorText("Select a style before processing.");
+    if (!selectedProcessingStyle) {
+      setErrorText("Choose a backend style before processing.");
       return;
     }
 
-    setErrorText("");
-    setSuccessText("");
-    setNetworkRetryCountdown(0);
-    if (pollTimeoutRef.current) {
-      window.clearTimeout(pollTimeoutRef.current);
-      pollTimeoutRef.current = null;
-    }
-    if (retryCountdownRef.current) {
-      window.clearInterval(retryCountdownRef.current);
-      retryCountdownRef.current = null;
-    }
-    setIsUploading(true);
-    setStatusText("Uploading...");
-
+    const extension = rawBlobRef.current.type.includes("mp4") ? "mp4" : "webm";
+    const uploadFileName = `webcam-recording.${extension}`;
     const formData = new FormData();
-    const ext = recordedBlob.type.includes("mp4") ? "mp4" : "webm";
-    formData.append("video", recordedBlob, `webcam-recording.${ext}`);
-    formData.append("style", selectedStyle);
+    formData.append("style", selectedProcessingStyle);
+    formData.append("video", rawBlobRef.current, uploadFileName);
 
     try {
-      const response = await fetch("/style_transfer/webcam-video/", {
-        method: "POST",
-        body: formData,
-      });
-      let data = {};
-      try {
-        data = await response.json();
-      } catch {
-        data = {};
-      }
-      if (!response.ok) {
-        throw new Error(data.error || "Upload failed");
-      }
+      setErrorText("");
+      setJobError("");
+      setSuccessText("");
+      setStatusText("Uploading webcam clip for full-quality processing...");
+      setJobStatus("queued");
+      setJobProgress(0);
+      setRemoteVideoUrl(processedVideoUrlRef, setProcessedVideoUrl, "");
 
-      setJobId(data.job_id);
-      setJobStatus({
-        status: data.status || "queued",
-        progress: 0,
-        error: null,
+      console.log("Submitting raw webcam clip:", {
+        filename: uploadFileName,
+        size: rawBlobRef.current.size,
+        type: rawBlobRef.current.type,
+        style: selectedProcessingStyle,
       });
-      setStatusText("Queued for processing");
-    } catch (err) {
-      setErrorText(err.message);
+
+      const response = await axios.post("/style_transfer/webcam-video/", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      console.log("Webcam upload response:", response.data);
+      setJobId(response.data?.job_id || "");
+      setJobStatus(response.data?.status || "queued");
+      setJobProgress(0);
+      setStatusText("Processing full-quality video...");
+    } catch (error) {
+      console.error("WEBCAM VIDEO SUBMIT FAILED:", error);
+      setJobStatus("failed");
+      setJobProgress(0);
+      setJobError(error?.response?.data?.error || "Upload failed.");
       setStatusText("Upload failed");
-    } finally {
-      setIsUploading(false);
     }
-  }, [recordedBlob, selectedStyle]);
+  }, [selectedProcessingStyle, setRemoteVideoUrl]);
 
   useEffect(() => {
-    if (!jobId) {
+    if (!jobId || jobStatus === "completed" || jobStatus === "failed") {
       return undefined;
     }
 
     let isCancelled = false;
-    let networkFailures = 0;
 
-    const clearRetryTimer = () => {
-      if (retryCountdownRef.current) {
-        window.clearInterval(retryCountdownRef.current);
-        retryCountdownRef.current = null;
-      }
-    };
-
-    const clearPollTimer = () => {
-      if (pollTimeoutRef.current) {
-        window.clearTimeout(pollTimeoutRef.current);
-        pollTimeoutRef.current = null;
-      }
-    };
-
-    const schedulePoll = (delayMs = STATUS_POLL_INTERVAL_MS) => {
-      clearPollTimer();
-      pollTimeoutRef.current = window.setTimeout(() => {
-        if (!isCancelled) {
-          poll();
-        }
-      }, delayMs);
-    };
-
-    const startNetworkRetryCountdown = () => {
-      clearRetryTimer();
-      setNetworkRetryCountdown(NETWORK_RETRY_SECONDS);
-      setStatusText(`Network error. Retry in ${NETWORK_RETRY_SECONDS}s...`);
-      retryCountdownRef.current = window.setInterval(() => {
-        setNetworkRetryCountdown((previous) => {
-          const next = previous - 1;
-          if (next <= 0) {
-            clearRetryTimer();
-            schedulePoll(0);
-            return 0;
-          }
-          setStatusText(`Network error. Retry in ${next}s...`);
-          return next;
-        });
-      }, 1000);
-    };
-
-    const poll = async () => {
+    const pollJob = async () => {
       try {
-        const response = await fetch(`/style_transfer/video-status/${jobId}/`);
-        let data = {};
-        try {
-          data = await response.json();
-        } catch {
-          data = {};
-        }
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to fetch status");
-        }
-
-        networkFailures = 0;
-        setNetworkRetryCountdown(0);
-
-        setJobStatus({
-          status: data.status,
-          progress: data.progress || 0,
-          error: data.error || null,
-        });
-
-        if (data.status === "completed") {
-          setStatusText("Processing complete");
-          setProcessedVideoUrl(data.video_url || "");
-          setSuccessText("Styled video ready. You can preview or download it now.");
-          clearPollTimer();
-          clearRetryTimer();
-        } else if (data.status === "failed") {
-          setStatusText("Processing failed");
-          setErrorText(data.error || "Unknown processing error");
-          clearPollTimer();
-          clearRetryTimer();
-        } else {
-          setStatusText(`Processing... ${data.progress || 0}%`);
-          schedulePoll();
-        }
-      } catch (err) {
-        networkFailures += 1;
-        if (networkFailures > MAX_NETWORK_RETRIES) {
-          setErrorText(`Network error. Polling stopped after ${MAX_NETWORK_RETRIES} retries.`);
-          setStatusText("Status polling stopped");
-          clearPollTimer();
-          clearRetryTimer();
+        const response = await axios.get(`/style_transfer/video-status/${jobId}/`);
+        console.log("Full status response:", JSON.stringify(response.data, null, 2));
+        if (isCancelled) {
           return;
         }
-        startNetworkRetryCountdown();
+
+        const status = response.data?.status || "queued";
+        const progress = Number(response.data?.progress || 0);
+        const error = response.data?.error || "";
+
+        setJobStatus(status);
+        setJobProgress(progress);
+        setJobError(error);
+
+        if (status === "completed") {
+          const resolvedVideoUrl = resolveBackendMediaUrl(response.data?.video_url || "");
+          setRemoteVideoUrl(processedVideoUrlRef, setProcessedVideoUrl, resolvedVideoUrl);
+          setStatusText("Video Ready!");
+          setSuccessText("Video Ready! You can preview or download the full-quality styled result.");
+          return;
+        }
+
+        if (status === "failed") {
+          setStatusText("Processing failed");
+          return;
+        }
+
+        setStatusText(
+          status === "queued"
+            ? "Video queued for processing..."
+            : `Processing... ${Math.max(0, Math.min(100, progress))}%`
+        );
+      } catch (error) {
+        console.error("STYLED VIDEO STATUS POLL FAILED:", error);
+        if (isCancelled) {
+          return;
+        }
+        setJobError("Network error. Retry in 10s...");
       }
     };
 
-    poll();
+    pollJob();
+    const intervalId = window.setInterval(pollJob, STATUS_POLL_INTERVAL_MS);
+
     return () => {
       isCancelled = true;
-      clearPollTimer();
-      clearRetryTimer();
+      window.clearInterval(intervalId);
     };
-  }, [jobId]);
+  }, [jobId, jobStatus, resolveBackendMediaUrl, setRemoteVideoUrl]);
 
   const resetCapture = useCallback(() => {
-    if (pollTimeoutRef.current) {
-      window.clearTimeout(pollTimeoutRef.current);
-      pollTimeoutRef.current = null;
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
     }
-    if (retryCountdownRef.current) {
-      window.clearInterval(retryCountdownRef.current);
-      retryCountdownRef.current = null;
+    stopActiveRecorders();
+    if (styledCaptureStreamRef.current) {
+      styledCaptureStreamRef.current.getTracks().forEach((track) => track.stop());
+      styledCaptureStreamRef.current = null;
     }
-    setStatusText("Idle");
+    recordingSessionRef.current = 0;
+    setStatusText("Live preview idle");
     setErrorText("");
     setSuccessText("");
-    setIsUploading(false);
-    setNetworkRetryCountdown(0);
     setIsRecording(false);
     setRecordingTimeMs(0);
-    setRecordedBlob(null);
-    if (recordedVideoUrl) {
-      URL.revokeObjectURL(recordedVideoUrl);
-    }
-    setRecordedVideoUrl("");
-    setProcessedVideoUrl("");
-    setJobId("");
-    setJobStatus({ status: "idle", progress: 0, error: null });
-  }, [recordedVideoUrl]);
+    updateVideoUrl(rawVideoUrlRef, setRecordedVideoUrl, null);
+    updateVideoUrl(styledVideoUrlRef, setLiveStyledVideoUrl, null);
+    rawBlobRef.current = null;
+    styledBlobRef.current = null;
+    resetProcessingState();
+  }, [resetProcessingState, stopActiveRecorders, updateVideoUrl]);
+
+  const activeStyle = LIVE_STYLE_OPTIONS.find((option) => option.id === selectedStyle) || LIVE_STYLE_OPTIONS[0];
+  const canProcessFullQuality = Boolean(rawBlobRef.current) && !isRecording && jobStatus !== "processing";
 
   return (
     <Container className="py-4">
@@ -405,10 +493,14 @@ const WebcamStudio = () => {
         <AlertBox variant="danger" children="login to continue" />
       ) : (
         <>
-          <h2 className="mb-3">Hybrid Webcam Studio</h2>
+          <h2 className="mb-3">Live Webcam Studio</h2>
+          <p className="text-muted mb-4">
+            This mode keeps the filter live in your browser and records the styled canvas directly.
+          </p>
+
           <div className="row">
             <div className="col-lg-6 mb-3">
-              <h5>Original Feed</h5>
+              <h5>Camera Feed</h5>
               <WebcamCapture
                 captureInterval={CAPTURE_INTERVAL_MS}
                 onFrame={onFrame}
@@ -416,8 +508,12 @@ const WebcamStudio = () => {
               />
             </div>
             <div className="col-lg-6 mb-3">
-              <h5>Styled Preview</h5>
-              <StylePreview onProcessorReady={onProcessorReady} />
+              <h5>Live Styled Output</h5>
+              <StylePreview
+                modelUrl={activeStyle.modelUrl}
+                onCanvasReady={onStyledCanvasReady}
+                onProcessorReady={onProcessorReady}
+              />
             </div>
           </div>
 
@@ -427,56 +523,98 @@ const WebcamStudio = () => {
             maxDurationMs={MAX_RECORDING_MS}
             onStartRecording={startRecording}
             onStopRecording={stopRecording}
-            onProcessFullQuality={processFullQuality}
-            canProcess={Boolean(recordedBlob) && Boolean(selectedStyle)}
             statusText={statusText}
-            isProcessing={isUploading || jobStatus.status === "queued" || jobStatus.status === "processing"}
+            isProcessing={jobStatus === "queued" || jobStatus === "processing"}
+            actionLabel="Process Full Quality"
+            onAction={submitForProcessing}
+            canAction={canProcessFullQuality}
           />
 
           <div className="mt-3">
             <label htmlFor="webcam-style-select" className="d-block mb-1">
-              Full-Quality Style
+              Live Style
             </label>
             <select
               id="webcam-style-select"
               className="form-control"
               value={selectedStyle}
               onChange={(event) => setSelectedStyle(event.target.value)}
-              disabled={isUploading || jobStatus.status === "queued" || jobStatus.status === "processing"}
+              disabled={isRecording}
             >
-              {styleOptions.map((option) => (
+              {LIVE_STYLE_OPTIONS.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
                 </option>
               ))}
             </select>
-            {styleError ? <small className="text-danger d-block mt-1">{styleError}</small> : null}
+            <small className="text-muted d-block mt-1">{activeStyle.description}</small>
           </div>
 
-          {isUploading ? <InlineSpinner label="Uploading clip..." /> : null}
+          <div className="mt-3">
+            <label htmlFor="webcam-processing-style-select" className="d-block mb-1">
+              Full Quality Style
+            </label>
+            <select
+              id="webcam-processing-style-select"
+              className="form-control"
+              value={selectedProcessingStyle}
+              onChange={(event) => setSelectedProcessingStyle(event.target.value)}
+              disabled={isRecording || webcamStyles.length === 0}
+            >
+              {webcamStyles.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <small className="text-muted d-block mt-1">
+              This style is sent to Django for the final processed MP4.
+            </small>
+          </div>
 
-          {jobStatus.status === "queued" || jobStatus.status === "processing" ? (
-            <InlineSpinner label={`Processing video... ${jobStatus.progress || 0}%`} />
+          {isRecording ? <InlineSpinner label="Capturing live styled video..." /> : null}
+          {!isRecording && (jobStatus === "queued" || jobStatus === "processing") ? (
+            <InlineSpinner label={`Processing... ${jobProgress}%`} />
           ) : null}
 
-          {networkRetryCountdown > 0 ? (
-            <AlertBox variant="warning">{`Network error. Retry in ${networkRetryCountdown}s...`}</AlertBox>
-          ) : null}
+          <ProcessingStatus jobId={jobId} status={jobStatus} progress={jobProgress} error={jobError} />
 
-          <ErrorAlert message={errorText} onRetry={recordedBlob ? processFullQuality : null} />
+          <ErrorAlert message={errorText || jobError} />
 
           {successText ? <AlertBox variant="success">{successText}</AlertBox> : null}
 
-          <ProcessingStatus
-            jobId={jobId}
-            status={jobStatus.status}
-            progress={jobStatus.progress}
-            error={jobStatus.error}
-          />
+          <div className="mt-3 p-3 border rounded">
+            <h6 className="mb-2">Debug Snapshot</h6>
+            <small className="d-block text-muted" style={{ wordBreak: "break-all" }}>
+              jobId: {jobId || "(empty)"}
+            </small>
+            <small className="d-block text-muted" style={{ wordBreak: "break-all" }}>
+              jobStatus: {jobStatus}
+            </small>
+            <small className="d-block text-muted" style={{ wordBreak: "break-all" }}>
+              recordedVideoUrl: {recordedVideoUrl || "(empty)"}
+            </small>
+            <small className="d-block text-muted" style={{ wordBreak: "break-all" }}>
+              liveStyledVideoUrl: {liveStyledVideoUrl || "(empty)"}
+            </small>
+            <small className="d-block text-muted" style={{ wordBreak: "break-all" }}>
+              processedVideoUrl: {processedVideoUrl || "(empty)"}
+            </small>
+          </div>
+
+          {liveStyledVideoUrl ? (
+            <div className="mt-4">
+              <h6>Browser Live Preview Capture</h6>
+              <video src={liveStyledVideoUrl} controls style={{ width: "100%" }} />
+            </div>
+          ) : null}
 
           <VideoComparison
             originalUrl={recordedVideoUrl}
             processedUrl={processedVideoUrl}
+            originalLabel="Raw Camera Recording"
+            processedLabel="Full-Quality Styled Video"
+            downloadLabel="Download Video"
             onReset={resetCapture}
           />
         </>

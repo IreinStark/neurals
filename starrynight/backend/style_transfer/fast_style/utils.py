@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 import torch
 from torchvision import transforms, datasets
 
@@ -25,6 +24,8 @@ def load_image(path):
 
 
 def show(img):
+    import matplotlib.pyplot as plt
+
     # Convert from BGR to RGB
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
@@ -110,6 +111,8 @@ def transfer_color(src, dest):
 
 
 def plot_loss_hist(c_loss, s_loss, total_loss, title="Loss History"):
+    import matplotlib.pyplot as plt
+
     x = [i for i in range(len(total_loss))]
     plt.figure(figsize=[10, 6])
     plt.plot(x, c_loss, label="Content Loss")
