@@ -25,14 +25,14 @@ class WebcamVideoViewDispatchTests(SimpleTestCase):
     @override_settings(DEBUG=True, WEBCAM_VIDEO_TASK_MODE="thread")
     @patch("style_transfer.views.default_storage.save", return_value="temp/mock.webm")
     @patch("style_transfer.views.resolve_style_model", return_value=("/tmp/model.pth", "starry-night"))
-    @patch("style_transfer.views.cache.set")
+    @patch("style_transfer.views.set_job_state")
     @patch("style_transfer.views.process_webcam_video.delay")
     @patch("style_transfer.views.Thread")
     def test_thread_mode_starts_local_background_job(
         self,
         thread_cls,
         delay_mock,
-        cache_set_mock,
+        set_job_state_mock,
         resolve_style_model_mock,
         save_mock,
     ):
@@ -47,21 +47,21 @@ class WebcamVideoViewDispatchTests(SimpleTestCase):
         delay_mock.assert_not_called()
         thread_cls.assert_called_once()
         thread_instance.start.assert_called_once()
-        cache_set_mock.assert_called_once()
+        set_job_state_mock.assert_called_once()
         resolve_style_model_mock.assert_called_once()
         save_mock.assert_called_once()
 
     @override_settings(DEBUG=True, WEBCAM_VIDEO_TASK_MODE="celery")
     @patch("style_transfer.views.default_storage.save", return_value="temp/mock.webm")
     @patch("style_transfer.views.resolve_style_model", return_value=("/tmp/model.pth", "starry-night"))
-    @patch("style_transfer.views.cache.set")
+    @patch("style_transfer.views.set_job_state")
     @patch("style_transfer.views.process_webcam_video.delay")
     @patch("style_transfer.views.Thread")
     def test_celery_mode_queues_task(
         self,
         thread_cls,
         delay_mock,
-        cache_set_mock,
+        set_job_state_mock,
         resolve_style_model_mock,
         save_mock,
     ):
@@ -72,6 +72,6 @@ class WebcamVideoViewDispatchTests(SimpleTestCase):
         self.assertEqual(payload["execution_mode"], "celery")
         delay_mock.assert_called_once()
         thread_cls.assert_not_called()
-        cache_set_mock.assert_called_once()
+        set_job_state_mock.assert_called_once()
         resolve_style_model_mock.assert_called_once()
         save_mock.assert_called_once()

@@ -8,7 +8,6 @@ from threading import Thread
 import cv2
 from PIL import Image
 from django.conf import settings
-from django.core.cache import cache
 from django.core.files.storage import default_storage
 from django.http import FileResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -17,17 +16,13 @@ from rest_framework.response import Response
 
 from .apps import StyleTransferConfig
 from .fast_style.api import stlye_transfer
+from .job_state import get_job_state, set_job_state
 from .reco.model_utils import preferred_reconet_model_path, resolve_existing_reconet_model
 from .reco.style_catalog import available_styles, resolve_style_model
 from .reco.reco_infer import stylize_video
 from .tasks import process_webcam_video
 
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
-JOB_TTL_SECONDS = 3600
-
-
-def _job_key(job_id):
-    return f"job_{job_id}"
 
 
 def _webcam_task_mode() -> str:
@@ -163,8 +158,8 @@ def webcam_video_view(request):
     suffix = Path(video_file.name or "webcam.mp4").suffix or ".mp4"
     temp_path = default_storage.save(f"temp/{job_id}{suffix}", video_file)
 
-    cache.set(
-        _job_key(job_id),
+    set_job_state(
+        job_id,
         {
             "status": "queued",
             "progress": 0,
@@ -172,7 +167,6 @@ def webcam_video_view(request):
             "error": None,
             "style": selected_style,
         },
-        timeout=JOB_TTL_SECONDS,
     )
 
     try:
@@ -200,7 +194,7 @@ def video_status_view(request, job_id):
     if request.method != "GET":
         return JsonResponse({"error": "GET only"}, status=405)
 
-    job_data = cache.get(_job_key(job_id))
+    job_data = get_job_state(job_id)
     if not job_data:
         return JsonResponse({"error": "Job not found"}, status=404)
 

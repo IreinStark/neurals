@@ -35,6 +35,17 @@ const selectMimeType = () => {
   return "";
 };
 
+const normalizeWebcamStyles = (styles) =>
+  (Array.isArray(styles) ? styles : [])
+    .filter((style) => style && style.id)
+    .map((style) => ({
+      ...style,
+      label: style.label || style.id,
+      // Treat a missing `available` flag as usable so the UI does not go blank
+      // if the backend payload shape drifts slightly.
+      available: style.available !== false,
+    }));
+
 const WebcamStudio = () => {
   const [isAuth, setIsAuth] = useState(false);
   const [statusText, setStatusText] = useState("Live preview idle");
@@ -46,6 +57,7 @@ const WebcamStudio = () => {
   const [liveStyledVideoUrl, setLiveStyledVideoUrl] = useState("");
   const [selectedStyle, setSelectedStyle] = useState(LIVE_STYLE_OPTIONS[0].id);
   const [webcamStyles, setWebcamStyles] = useState([]);
+  const [isLoadingWebcamStyles, setIsLoadingWebcamStyles] = useState(true);
   const [selectedProcessingStyle, setSelectedProcessingStyle] = useState("");
   const [jobId, setJobId] = useState("");
   const [jobStatus, setJobStatus] = useState("idle");
@@ -78,29 +90,35 @@ const WebcamStudio = () => {
     let mounted = true;
 
     const loadWebcamStyles = async () => {
+      setIsLoadingWebcamStyles(true);
       try {
         const response = await axios.get("/style_transfer/webcam-styles/");
         if (!mounted) {
           return;
         }
-        const styles = Array.isArray(response.data?.styles) ? response.data.styles : [];
+        const styles = normalizeWebcamStyles(response.data?.styles);
         const availableStyles = styles.filter((style) => style.available);
+        const selectableStyles = availableStyles.length > 0 ? availableStyles : styles;
         const defaultStyle = response.data?.default_style || "";
-        setWebcamStyles(availableStyles);
+        setWebcamStyles(selectableStyles);
         setSelectedProcessingStyle((current) => {
-          if (current && availableStyles.some((style) => style.id === current)) {
+          if (current && selectableStyles.some((style) => style.id === current)) {
             return current;
           }
-          if (defaultStyle && availableStyles.some((style) => style.id === defaultStyle)) {
+          if (defaultStyle && selectableStyles.some((style) => style.id === defaultStyle)) {
             return defaultStyle;
           }
-          return availableStyles[0]?.id || "";
+          return selectableStyles[0]?.id || "";
         });
+        setIsLoadingWebcamStyles(false);
       } catch (error) {
         console.error("WEBCAM STYLES LOAD FAILED:", error);
         if (!mounted) {
           return;
         }
+        setWebcamStyles([]);
+        setSelectedProcessingStyle("");
+        setIsLoadingWebcamStyles(false);
         setErrorText("Could not load backend webcam styles.");
       }
     };
@@ -485,7 +503,13 @@ const WebcamStudio = () => {
   }, [resetProcessingState, stopActiveRecorders, updateVideoUrl]);
 
   const activeStyle = LIVE_STYLE_OPTIONS.find((option) => option.id === selectedStyle) || LIVE_STYLE_OPTIONS[0];
-  const canProcessFullQuality = Boolean(rawBlobRef.current) && !isRecording && jobStatus !== "processing";
+  const hasProcessingStyle = Boolean(selectedProcessingStyle);
+  const canProcessFullQuality =
+    Boolean(rawBlobRef.current) &&
+    !isRecording &&
+    jobStatus !== "processing" &&
+    !isLoadingWebcamStyles &&
+    hasProcessingStyle;
 
   return (
     <Container className="py-4">
@@ -559,8 +583,12 @@ const WebcamStudio = () => {
               className="form-control"
               value={selectedProcessingStyle}
               onChange={(event) => setSelectedProcessingStyle(event.target.value)}
-              disabled={isRecording || webcamStyles.length === 0}
+              disabled={isRecording || isLoadingWebcamStyles || webcamStyles.length === 0}
             >
+              {isLoadingWebcamStyles ? <option value="">Loading backend styles...</option> : null}
+              {!isLoadingWebcamStyles && webcamStyles.length === 0 ? (
+                <option value="">No backend styles available</option>
+              ) : null}
               {webcamStyles.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
@@ -568,7 +596,11 @@ const WebcamStudio = () => {
               ))}
             </select>
             <small className="text-muted d-block mt-1">
-              This style is sent to Django for the final processed MP4.
+              {isLoadingWebcamStyles
+                ? "Loading the Django style catalog for final MP4 processing."
+                : webcamStyles.length === 0
+                  ? "No backend styles are available for full-quality processing right now."
+                  : "This style is sent to Django for the final processed MP4."}
             </small>
           </div>
 

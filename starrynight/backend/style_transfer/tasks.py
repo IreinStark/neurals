@@ -3,25 +3,15 @@ from typing import Optional
 
 from celery import shared_task
 from django.conf import settings
-from django.core.cache import cache
 from django.core.files.storage import default_storage
 
 from .apps import StyleTransferConfig
 from .fast_style.api import stlye_transfer
-from .fast_style.stylize import load_model
+from .job_state import update_job_state
 from .reco.style_catalog import resolve_style_model
 
-JOB_TTL_SECONDS = 3600
-
-
-def _job_key(job_id: str) -> str:
-    return f"job_{job_id}"
-
-
 def _update_job(job_id: str, **payload) -> None:
-    current = cache.get(_job_key(job_id), {})
-    current.update(payload)
-    cache.set(_job_key(job_id), current, timeout=JOB_TTL_SECONDS)
+    update_job_state(job_id, **payload)
 
 
 def _friendly_error(exc: Exception) -> str:
