@@ -12,16 +12,51 @@ import ErrorAlert from "../components/WebcamStudio/ErrorAlert";
 import ProcessingStatus from "../components/WebcamStudio/ProcessingStatus";
 
 const CAPTURE_INTERVAL_MS = 50;
-const MAX_RECORDING_MS = 10000;
+const TIMER_TICK_MS = 500;
+const MAX_RECORDING_MS = 30000;
 const LIVE_CAPTURE_FPS = 15;
 const STATUS_POLL_INTERVAL_MS = 2000;
 
 const LIVE_STYLE_OPTIONS = [
   {
+    id: "starry-night",
+    label: "Van Gogh – Starry Night",
+    modelUrl: "/models/starry-night.onnx",
+  },
+  {
+    id: "mosaic",
+    label: "Gaudi – Mosaic",
+    modelUrl: "/models/mosaic.onnx",
+  },
+  {
+    id: "udnie",
+    label: "Francis Picabia – Udnie",
+    modelUrl: "/models/udnie.onnx",
+  },
+  {
+    id: "wave",
+    label: "Hokusai – Great Wave",
+    modelUrl: "/models/wave.onnx",
+  },
+  {
+    id: "tokyo-ghoul",
+    label: "Tokyo Ghoul",
+    modelUrl: "/models/tokyo-ghoul.onnx",
+  },
+  {
+    id: "lazy",
+    label: "Lazy Sunday",
+    modelUrl: "/models/lazy.onnx",
+  },
+  {
+    id: "bayanihan",
+    label: "Bayanihan",
+    modelUrl: "/models/bayanihan.onnx",
+  },
+  {
     id: "pointillism-live",
-    label: "Pointillism Live",
+    label: "Pointillism (original)",
     modelUrl: "/models/pointilism-10.onnx",
-    description: "Live browser filter recorded directly from the styled canvas.",
   },
 ];
 
@@ -74,6 +109,7 @@ const WebcamStudio = () => {
   const rawChunksRef = useRef([]);
   const styledChunksRef = useRef([]);
   const timerRef = useRef(null);
+  const recordingStartRef = useRef(0);
   const rawVideoUrlRef = useRef("");
   const styledVideoUrlRef = useRef("");
   const processedVideoUrlRef = useRef("");
@@ -356,16 +392,14 @@ const WebcamStudio = () => {
     styledRecorder.start(250);
     setIsRecording(true);
 
+    recordingStartRef.current = Date.now();
     timerRef.current = window.setInterval(() => {
-      setRecordingTimeMs((prev) => {
-        const next = prev + CAPTURE_INTERVAL_MS;
-        if (next >= MAX_RECORDING_MS) {
-          stopRecording();
-          return MAX_RECORDING_MS;
-        }
-        return next;
-      });
-    }, CAPTURE_INTERVAL_MS);
+      const elapsed = Date.now() - recordingStartRef.current;
+      setRecordingTimeMs(Math.min(elapsed, MAX_RECORDING_MS));
+      if (elapsed >= MAX_RECORDING_MS) {
+        stopRecording();
+      }
+    }, TIMER_TICK_MS);
   }, [resetProcessingState, stopRecording, updateVideoUrl]);
 
   const submitForProcessing = useCallback(async () => {
@@ -535,24 +569,13 @@ const WebcamStudio = () => {
               <h5>Live Styled Output</h5>
               <StylePreview
                 modelUrl={activeStyle.modelUrl}
+                inferenceWidth={256}
+              inferenceHeight={144}
                 onCanvasReady={onStyledCanvasReady}
                 onProcessorReady={onProcessorReady}
               />
             </div>
           </div>
-
-          <RecordControls
-            isRecording={isRecording}
-            recordingTimeMs={recordingTimeMs}
-            maxDurationMs={MAX_RECORDING_MS}
-            onStartRecording={startRecording}
-            onStopRecording={stopRecording}
-            statusText={statusText}
-            isProcessing={jobStatus === "queued" || jobStatus === "processing"}
-            actionLabel="Process Full Quality"
-            onAction={submitForProcessing}
-            canAction={canProcessFullQuality}
-          />
 
           <div className="mt-3">
             <label htmlFor="webcam-style-select" className="d-block mb-1">
@@ -571,8 +594,23 @@ const WebcamStudio = () => {
                 </option>
               ))}
             </select>
-            <small className="text-muted d-block mt-1">{activeStyle.description}</small>
+            <small className="text-muted d-block mt-1">
+              Live browser preview — {LIVE_STYLE_OPTIONS.length} styles available
+            </small>
           </div>
+
+          <RecordControls
+            isRecording={isRecording}
+            recordingTimeMs={recordingTimeMs}
+            maxDurationMs={MAX_RECORDING_MS}
+            onStartRecording={startRecording}
+            onStopRecording={stopRecording}
+            statusText={statusText}
+            isProcessing={jobStatus === "queued" || jobStatus === "processing"}
+            actionLabel="Process Full Quality"
+            onAction={submitForProcessing}
+            canAction={canProcessFullQuality}
+          />
 
           <div className="mt-3">
             <label htmlFor="webcam-processing-style-select" className="d-block mb-1">
@@ -614,25 +652,6 @@ const WebcamStudio = () => {
           <ErrorAlert message={errorText || jobError} />
 
           {successText ? <AlertBox variant="success">{successText}</AlertBox> : null}
-
-          <div className="mt-3 p-3 border rounded">
-            <h6 className="mb-2">Debug Snapshot</h6>
-            <small className="d-block text-muted" style={{ wordBreak: "break-all" }}>
-              jobId: {jobId || "(empty)"}
-            </small>
-            <small className="d-block text-muted" style={{ wordBreak: "break-all" }}>
-              jobStatus: {jobStatus}
-            </small>
-            <small className="d-block text-muted" style={{ wordBreak: "break-all" }}>
-              recordedVideoUrl: {recordedVideoUrl || "(empty)"}
-            </small>
-            <small className="d-block text-muted" style={{ wordBreak: "break-all" }}>
-              liveStyledVideoUrl: {liveStyledVideoUrl || "(empty)"}
-            </small>
-            <small className="d-block text-muted" style={{ wordBreak: "break-all" }}>
-              processedVideoUrl: {processedVideoUrl || "(empty)"}
-            </small>
-          </div>
 
           {liveStyledVideoUrl ? (
             <div className="mt-4">

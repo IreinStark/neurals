@@ -1,0 +1,317 @@
+{
+  "timestamp": "20260519_194831",
+  "results": [
+    {
+      "mode": "Image",
+      "checkpoint": "/Users/macos/neural-style-video/starrynight/backend/models/starry/starry80.pth",
+      "device": "cpu",
+      "fps": 3.572157763136515,
+      "psnr": 9.823965115036481,
+      "mae": 65.37753295898438,
+      "lpips": 0.7125294804573059,
+      "twe": null,
+      "notes": "Style: starry-night",
+      "metadata": {
+        "available_styles": [
+          {
+            "available": true,
+            "id": "starry-night",
+            "is_default": true,
+            "label": "Van Gogh - Starry Night",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/starry/starry80.pth"
+          },
+          {
+            "available": true,
+            "id": "bayanihan",
+            "is_default": false,
+            "label": "Bayanihan",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/bayanihan100.pth"
+          },
+          {
+            "available": true,
+            "id": "udnie",
+            "is_default": false,
+            "label": "Francis Picabia - Udnie",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/udnie_aggressive.pth"
+          },
+          {
+            "available": true,
+            "id": "mosaic",
+            "is_default": false,
+            "label": "Gaudi - Mosaic",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/mosiac/mosaic_light.pth"
+          },
+          {
+            "available": true,
+            "id": "wave",
+            "is_default": false,
+            "label": "Hokusai - Great Wave",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/wave/wave100.pth"
+          },
+          {
+            "available": true,
+            "id": "lazy",
+            "is_default": false,
+            "label": "Lazy Sunday",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/lazy/lazy250.pth"
+          },
+          {
+            "available": true,
+            "id": "tokyo-ghoul",
+            "is_default": false,
+            "label": "Tokyo Ghoul",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/tokyo_ghoul/tokyo_ghoul_light.pth"
+          }
+        ],
+        "checkpoint_path": "/Users/macos/neural-style-video/starrynight/backend/models/starry/starry80.pth",
+        "device": "cpu",
+        "fps": 3.572157763136515,
+        "image_shape_bgr": [
+          300,
+          400,
+          3
+        ],
+        "input_path": "/Users/macos/neural-style-video/starrynight/frontend/public/home/styled1.jpg",
+        "lpips": 0.7125294804573059,
+        "lpips_available": true,
+        "mae_to_input": 65.37753295898438,
+        "mode": "image",
+        "psnr_to_input": 9.823965115036481
+      }
+    },
+    {
+      "mode": "Image",
+      "checkpoint": "/Users/macos/neural-style-video/starrynight/backend/models/mosiac/mosaic_light.pth",
+      "device": "cpu",
+      "fps": 3.0660252285484955,
+      "psnr": 17.263219748379118,
+      "mae": 28.252155303955078,
+      "lpips": 0.4449012577533722,
+      "twe": null,
+      "notes": "Style: mosaic",
+      "metadata": {
+        "available_styles": [
+          {
+            "available": true,
+            "id": "starry-night",
+            "is_default": true,
+            "label": "Van Gogh - Starry Night",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/starry/starry80.pth"
+          },
+          {
+            "available": true,
+            "id": "bayanihan",
+            "is_default": false,
+            "label": "Bayanihan",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/bayanihan100.pth"
+          },
+          {
+            "available": true,
+            "id": "udnie",
+            "is_default": false,
+            "label": "Francis Picabia - Udnie",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/udnie_aggressive.pth"
+          },
+          {
+            "available": true,
+            "id": "mosaic",
+            "is_default": false,
+            "label": "Gaudi - Mosaic",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/mosiac/mosaic_light.pth"
+          },
+          {
+            "available": true,
+            "id": "wave",
+            "is_default": false,
+            "label": "Hokusai - Great Wave",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/wave/wave100.pth"
+          },
+          {
+            "available": true,
+            "id": "lazy",
+            "is_default": false,
+            "label": "Lazy Sunday",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/lazy/lazy250.pth"
+          },
+          {
+            "available": true,
+            "id": "tokyo-ghoul",
+            "is_default": false,
+            "label": "Tokyo Ghoul",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/tokyo_ghoul/tokyo_ghoul_light.pth"
+          }
+        ],
+        "checkpoint_path": "/Users/macos/neural-style-video/starrynight/backend/models/mosiac/mosaic_light.pth",
+        "device": "cpu",
+        "fps": 3.0660252285484955,
+        "image_shape_bgr": [
+          300,
+          400,
+          3
+        ],
+        "input_path": "/Users/macos/neural-style-video/starrynight/frontend/public/home/styled1.jpg",
+        "lpips": 0.4449012577533722,
+        "lpips_available": true,
+        "mae_to_input": 28.252155303955078,
+        "mode": "image",
+        "psnr_to_input": 17.263219748379118
+      }
+    },
+    {
+      "mode": "Image",
+      "checkpoint": "/Users/macos/neural-style-video/starrynight/backend/models/wave/wave100.pth",
+      "device": "cpu",
+      "fps": 3.3347945729504596,
+      "psnr": 13.013238616360976,
+      "mae": 44.71494674682617,
+      "lpips": 0.5681939125061035,
+      "twe": null,
+      "notes": "Style: wave",
+      "metadata": {
+        "available_styles": [
+          {
+            "available": true,
+            "id": "starry-night",
+            "is_default": true,
+            "label": "Van Gogh - Starry Night",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/starry/starry80.pth"
+          },
+          {
+            "available": true,
+            "id": "bayanihan",
+            "is_default": false,
+            "label": "Bayanihan",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/bayanihan100.pth"
+          },
+          {
+            "available": true,
+            "id": "udnie",
+            "is_default": false,
+            "label": "Francis Picabia - Udnie",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/udnie_aggressive.pth"
+          },
+          {
+            "available": true,
+            "id": "mosaic",
+            "is_default": false,
+            "label": "Gaudi - Mosaic",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/mosiac/mosaic_light.pth"
+          },
+          {
+            "available": true,
+            "id": "wave",
+            "is_default": false,
+            "label": "Hokusai - Great Wave",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/wave/wave100.pth"
+          },
+          {
+            "available": true,
+            "id": "lazy",
+            "is_default": false,
+            "label": "Lazy Sunday",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/lazy/lazy250.pth"
+          },
+          {
+            "available": true,
+            "id": "tokyo-ghoul",
+            "is_default": false,
+            "label": "Tokyo Ghoul",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/tokyo_ghoul/tokyo_ghoul_light.pth"
+          }
+        ],
+        "checkpoint_path": "/Users/macos/neural-style-video/starrynight/backend/models/wave/wave100.pth",
+        "device": "cpu",
+        "fps": 3.3347945729504596,
+        "image_shape_bgr": [
+          300,
+          400,
+          3
+        ],
+        "input_path": "/Users/macos/neural-style-video/starrynight/frontend/public/home/styled1.jpg",
+        "lpips": 0.5681939125061035,
+        "lpips_available": true,
+        "mae_to_input": 44.71494674682617,
+        "mode": "image",
+        "psnr_to_input": 13.013238616360976
+      }
+    },
+    {
+      "mode": "Image",
+      "checkpoint": "/Users/macos/neural-style-video/starrynight/backend/models/udnie_aggressive.pth",
+      "device": "cpu",
+      "fps": 1.935888615168117,
+      "psnr": 16.835566229205426,
+      "mae": 28.832679748535156,
+      "lpips": 0.4229816496372223,
+      "twe": null,
+      "notes": "Style: udnie",
+      "metadata": {
+        "available_styles": [
+          {
+            "available": true,
+            "id": "starry-night",
+            "is_default": true,
+            "label": "Van Gogh - Starry Night",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/starry/starry80.pth"
+          },
+          {
+            "available": true,
+            "id": "bayanihan",
+            "is_default": false,
+            "label": "Bayanihan",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/bayanihan100.pth"
+          },
+          {
+            "available": true,
+            "id": "udnie",
+            "is_default": false,
+            "label": "Francis Picabia - Udnie",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/udnie_aggressive.pth"
+          },
+          {
+            "available": true,
+            "id": "mosaic",
+            "is_default": false,
+            "label": "Gaudi - Mosaic",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/mosiac/mosaic_light.pth"
+          },
+          {
+            "available": true,
+            "id": "wave",
+            "is_default": false,
+            "label": "Hokusai - Great Wave",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/wave/wave100.pth"
+          },
+          {
+            "available": true,
+            "id": "lazy",
+            "is_default": false,
+            "label": "Lazy Sunday",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/lazy/lazy250.pth"
+          },
+          {
+            "available": true,
+            "id": "tokyo-ghoul",
+            "is_default": false,
+            "label": "Tokyo Ghoul",
+            "model_path": "/Users/macos/neural-style-video/starrynight/backend/models/tokyo_ghoul/tokyo_ghoul_light.pth"
+          }
+        ],
+        "checkpoint_path": "/Users/macos/neural-style-video/starrynight/backend/models/udnie_aggressive.pth",
+        "device": "cpu",
+        "fps": 1.935888615168117,
+        "image_shape_bgr": [
+          300,
+          400,
+          3
+        ],
+        "input_path": "/Users/macos/neural-style-video/starrynight/frontend/public/home/styled1.jpg",
+        "lpips": 0.4229816496372223,
+        "lpips_available": true,
+        "mae_to_input": 28.832679748535156,
+        "mode": "image",
+        "psnr_to_input": 16.835566229205426
+      }
+    }
+  ]
+}

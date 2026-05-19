@@ -20,6 +20,8 @@ media/
 */media/
 .cache/
 */.cache/
+.webcam_jobs/
+*/.webcam_jobs/
 
 # Frontend
 node_modules/

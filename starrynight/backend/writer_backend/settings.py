@@ -142,7 +142,9 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 CACHE_URL = os.environ.get("CACHE_URL", "redis://127.0.0.1:6379/1")
-CACHE_BACKEND = os.environ.get("CACHE_BACKEND", "redis")
+# Default to locmem so the app starts without Redis in development.
+# Set CACHE_BACKEND=redis (and CACHE_URL) in production.
+CACHE_BACKEND = os.environ.get("CACHE_BACKEND", "locmem" if DEBUG else "redis")
 
 if CACHE_BACKEND == "redis":
     CACHES = {
