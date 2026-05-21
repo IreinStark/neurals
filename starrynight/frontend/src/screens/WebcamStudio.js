@@ -1,14 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Container } from "react-bootstrap";
+import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
-
-import AlertBox from "../components/AlertBox";
 import WebcamCapture from "../components/WebcamStudio/WebcamCapture";
 import StylePreview from "../components/WebcamStudio/StylePreview";
 import RecordControls from "../components/WebcamStudio/RecordControls";
 import VideoComparison from "../components/WebcamStudio/VideoComparison";
 import InlineSpinner from "../components/WebcamStudio/InlineSpinner";
-import ErrorAlert from "../components/WebcamStudio/ErrorAlert";
 import ProcessingStatus from "../components/WebcamStudio/ProcessingStatus";
 
 const CAPTURE_INTERVAL_MS = 50;
@@ -120,6 +116,41 @@ const WebcamStudio = () => {
     if (localStorage.getItem("userToken") !== null) {
       setIsAuth(true);
     }
+    // Restore last processed video — try DB first, then localStorage
+    const restoreLastVideo = async () => {
+      try {
+        const response = await axios.get("/style_transfer/my-videos/");
+        const webcamVideos = (response.data?.videos || []).filter((v) => v.source === "webcam");
+        if (webcamVideos.length > 0) {
+          const latest = webcamVideos[0];
+          const resolvedUrl = latest.video_url
+            ? (window.location.port === "3000"
+                ? new URL(latest.video_url, "http://127.0.0.1:8000").toString()
+                : latest.video_url)
+            : "";
+          if (resolvedUrl) {
+            setRemoteVideoUrl(processedVideoUrlRef, setProcessedVideoUrl, resolvedUrl);
+            setJobId(latest.job_id || "");
+            setJobStatus("completed");
+            setStatusText("Video Ready!");
+            return;
+          }
+        }
+      } catch (_) {}
+      // Fallback: localStorage
+      try {
+        const cachedUrl = localStorage.getItem("webcam_processed_url");
+        const cachedJob = localStorage.getItem("webcam_job_id");
+        if (cachedUrl) {
+          setRemoteVideoUrl(processedVideoUrlRef, setProcessedVideoUrl, cachedUrl);
+          if (cachedJob) setJobId(cachedJob);
+          setJobStatus("completed");
+          setStatusText("Video Ready!");
+        }
+      } catch (_) {}
+    };
+    restoreLastVideo();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -482,6 +513,10 @@ const WebcamStudio = () => {
           setRemoteVideoUrl(processedVideoUrlRef, setProcessedVideoUrl, resolvedVideoUrl);
           setStatusText("Video Ready!");
           setSuccessText("Video Ready! You can preview or download the full-quality styled result.");
+          try {
+            localStorage.setItem("webcam_processed_url", resolvedVideoUrl);
+            localStorage.setItem("webcam_job_id", jobId);
+          } catch (_) {}
           return;
         }
 
@@ -524,6 +559,10 @@ const WebcamStudio = () => {
       styledCaptureStreamRef.current = null;
     }
     recordingSessionRef.current = 0;
+    try {
+      localStorage.removeItem("webcam_processed_url");
+      localStorage.removeItem("webcam_job_id");
+    } catch (_) {}
     setStatusText("Live preview idle");
     setErrorText("");
     setSuccessText("");
@@ -545,132 +584,159 @@ const WebcamStudio = () => {
     !isLoadingWebcamStyles &&
     hasProcessingStyle;
 
+  if (!isAuth) {
+    return (
+      <div style={{ padding: "40px 20px", maxWidth: "980px", margin: "0 auto" }}>
+        <div className="neu-alert danger" style={{ marginTop: "24px" }}>
+          Please log in to continue.
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Container className="py-4">
-      {isAuth !== true ? (
-        <AlertBox variant="danger" children="login to continue" />
-      ) : (
-        <>
-          <h2 className="mb-3">Live Webcam Studio</h2>
-          <p className="text-muted mb-4">
-            This mode keeps the filter live in your browser and records the styled canvas directly.
+    <div style={{ padding: "32px 20px", maxWidth: "980px", margin: "0 auto" }}>
+      <div className="neu-card" style={{ marginBottom: "24px" }}>
+        <h2 className="neu-text" style={{ margin: "0 0 6px", fontWeight: 700 }}>Live Webcam Studio</h2>
+        <p className="neu-muted" style={{ margin: 0, fontSize: "0.92rem" }}>
+          Apply neural styles live in your browser, record, and process the raw clip at full quality.
+        </p>
+      </div>
+
+      {/* Style selectors */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+        <div className="neu-card-sm">
+          <label className="neu-label" htmlFor="webcam-style-select" style={{ display: "block", marginBottom: "10px" }}>
+            Live Browser Style
+          </label>
+          <select
+            id="webcam-style-select"
+            className="neu-select"
+            value={selectedStyle}
+            onChange={(e) => setSelectedStyle(e.target.value)}
+            disabled={isRecording}
+          >
+            {LIVE_STYLE_OPTIONS.map((opt) => (
+              <option key={opt.id} value={opt.id}>{opt.label}</option>
+            ))}
+          </select>
+          <p className="neu-muted" style={{ fontSize: "0.75rem", margin: "8px 0 0" }}>
+            ONNX inference in your browser — {LIVE_STYLE_OPTIONS.length} styles
           </p>
+        </div>
 
-          <div className="row">
-            <div className="col-lg-6 mb-3">
-              <h5>Camera Feed</h5>
-              <WebcamCapture
-                captureInterval={CAPTURE_INTERVAL_MS}
-                onFrame={onFrame}
-                onStreamReady={onStreamReady}
-              />
-            </div>
-            <div className="col-lg-6 mb-3">
-              <h5>Live Styled Output</h5>
-              <StylePreview
-                modelUrl={activeStyle.modelUrl}
-                inferenceWidth={256}
+        <div className="neu-card-sm">
+          <label className="neu-label" htmlFor="webcam-processing-style-select" style={{ display: "block", marginBottom: "10px" }}>
+            Full-Quality Style
+          </label>
+          <select
+            id="webcam-processing-style-select"
+            className="neu-select"
+            value={selectedProcessingStyle}
+            onChange={(e) => setSelectedProcessingStyle(e.target.value)}
+            disabled={isRecording || isLoadingWebcamStyles || webcamStyles.length === 0}
+          >
+            {isLoadingWebcamStyles && <option value="">Loading…</option>}
+            {!isLoadingWebcamStyles && webcamStyles.length === 0 && (
+              <option value="">No backend styles available</option>
+            )}
+            {webcamStyles.map((opt) => (
+              <option key={opt.id} value={opt.id}>{opt.label}</option>
+            ))}
+          </select>
+          <p className="neu-muted" style={{ fontSize: "0.75rem", margin: "8px 0 0" }}>
+            Sent to Django for the final MP4
+          </p>
+        </div>
+      </div>
+
+      {/* Camera + preview */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+        <div className="neu-card-sm">
+          <p className="neu-label" style={{ marginBottom: "10px" }}>Camera Feed</p>
+          <div className="neu-media">
+            <WebcamCapture
+              captureInterval={CAPTURE_INTERVAL_MS}
+              onFrame={onFrame}
+              onStreamReady={onStreamReady}
+            />
+          </div>
+        </div>
+        <div className="neu-card-sm">
+          <p className="neu-label" style={{ marginBottom: "10px" }}>Live Styled Output</p>
+          <div className="neu-media">
+            <StylePreview
+              modelUrl={activeStyle.modelUrl}
+              inferenceWidth={256}
               inferenceHeight={144}
-                onCanvasReady={onStyledCanvasReady}
-                onProcessorReady={onProcessorReady}
-              />
-            </div>
+              onCanvasReady={onStyledCanvasReady}
+              onProcessorReady={onProcessorReady}
+            />
           </div>
+        </div>
+      </div>
 
-          <div className="mt-3">
-            <label htmlFor="webcam-style-select" className="d-block mb-1">
-              Live Style
-            </label>
-            <select
-              id="webcam-style-select"
-              className="form-control"
-              value={selectedStyle}
-              onChange={(event) => setSelectedStyle(event.target.value)}
-              disabled={isRecording}
-            >
-              {LIVE_STYLE_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <small className="text-muted d-block mt-1">
-              Live browser preview — {LIVE_STYLE_OPTIONS.length} styles available
-            </small>
-          </div>
+      <RecordControls
+        isRecording={isRecording}
+        recordingTimeMs={recordingTimeMs}
+        maxDurationMs={MAX_RECORDING_MS}
+        onStartRecording={startRecording}
+        onStopRecording={stopRecording}
+        statusText={statusText}
+        isProcessing={jobStatus === "queued" || jobStatus === "processing"}
+        actionLabel="Process Full Quality"
+        onAction={submitForProcessing}
+        canAction={canProcessFullQuality}
+      />
 
-          <RecordControls
-            isRecording={isRecording}
-            recordingTimeMs={recordingTimeMs}
-            maxDurationMs={MAX_RECORDING_MS}
-            onStartRecording={startRecording}
-            onStopRecording={stopRecording}
-            statusText={statusText}
-            isProcessing={jobStatus === "queued" || jobStatus === "processing"}
-            actionLabel="Process Full Quality"
-            onAction={submitForProcessing}
-            canAction={canProcessFullQuality}
-          />
-
-          <div className="mt-3">
-            <label htmlFor="webcam-processing-style-select" className="d-block mb-1">
-              Full Quality Style
-            </label>
-            <select
-              id="webcam-processing-style-select"
-              className="form-control"
-              value={selectedProcessingStyle}
-              onChange={(event) => setSelectedProcessingStyle(event.target.value)}
-              disabled={isRecording || isLoadingWebcamStyles || webcamStyles.length === 0}
-            >
-              {isLoadingWebcamStyles ? <option value="">Loading backend styles...</option> : null}
-              {!isLoadingWebcamStyles && webcamStyles.length === 0 ? (
-                <option value="">No backend styles available</option>
-              ) : null}
-              {webcamStyles.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <small className="text-muted d-block mt-1">
-              {isLoadingWebcamStyles
-                ? "Loading the Django style catalog for final MP4 processing."
-                : webcamStyles.length === 0
-                  ? "No backend styles are available for full-quality processing right now."
-                  : "This style is sent to Django for the final processed MP4."}
-            </small>
-          </div>
-
-          {isRecording ? <InlineSpinner label="Capturing live styled video..." /> : null}
-          {!isRecording && (jobStatus === "queued" || jobStatus === "processing") ? (
-            <InlineSpinner label={`Processing... ${jobProgress}%`} />
-          ) : null}
-
-          <ProcessingStatus jobId={jobId} status={jobStatus} progress={jobProgress} error={jobError} />
-
-          <ErrorAlert message={errorText || jobError} />
-
-          {successText ? <AlertBox variant="success">{successText}</AlertBox> : null}
-
-          {liveStyledVideoUrl ? (
-            <div className="mt-4">
-              <h6>Browser Live Preview Capture</h6>
-              <video src={liveStyledVideoUrl} controls style={{ width: "100%" }} />
-            </div>
-          ) : null}
-
-          <VideoComparison
-            originalUrl={recordedVideoUrl}
-            processedUrl={processedVideoUrl}
-            originalLabel="Raw Camera Recording"
-            processedLabel="Full-Quality Styled Video"
-            downloadLabel="Download Video"
-            onReset={resetCapture}
-          />
-        </>
+      {(isRecording || jobStatus === "queued" || jobStatus === "processing") && (
+        <div className="neu-card" style={{ marginTop: "16px" }}>
+          {isRecording ? (
+            <InlineSpinner label="Capturing live styled video…" />
+          ) : (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+                <span className="neu-muted" style={{ fontSize: "0.85rem" }}>Processing full-quality video…</span>
+                <span className="neu-accent-text" style={{ fontWeight: 700, fontSize: "0.85rem" }}>{jobProgress}%</span>
+              </div>
+              <div className="neu-progress">
+                <div className="neu-progress-fill" style={{ width: `${Math.max(5, jobProgress)}%` }} />
+              </div>
+            </>
+          )}
+        </div>
       )}
-    </Container>
+
+      <ProcessingStatus jobId={jobId} status={jobStatus} progress={jobProgress} error={jobError} />
+
+      {(errorText || jobError) && (
+        <div className="neu-alert danger" style={{ marginTop: "16px" }}>
+          {errorText || jobError}
+        </div>
+      )}
+      {successText && (
+        <div className="neu-alert success" style={{ marginTop: "16px" }}>
+          {successText}
+        </div>
+      )}
+
+      {liveStyledVideoUrl && (
+        <div className="neu-card" style={{ marginTop: "16px" }}>
+          <p className="neu-label" style={{ marginBottom: "10px" }}>Browser Live Preview Capture</p>
+          <div className="neu-media">
+            <video src={liveStyledVideoUrl} controls style={{ width: "100%" }} />
+          </div>
+        </div>
+      )}
+
+      <VideoComparison
+        originalUrl={recordedVideoUrl}
+        processedUrl={processedVideoUrl}
+        originalLabel="Raw Camera Recording"
+        processedLabel="Full-Quality Styled Video"
+        onReset={resetCapture}
+      />
+    </div>
   );
 };
 

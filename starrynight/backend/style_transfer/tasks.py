@@ -92,8 +92,28 @@ def _process_webcam_video_fast(
         writer.release()
 
 
+def _save_processed_video(job_id: str, video_url: str, style: str, user_id: Optional[int], source: str) -> None:
+    try:
+        from django.contrib.auth.models import User
+        from .models import ProcessedVideo
+        user = User.objects.get(pk=user_id) if user_id else None
+        ProcessedVideo.objects.update_or_create(
+            job_id=job_id,
+            defaults={"video_url": video_url, "style": style, "user": user, "source": source},
+        )
+    except Exception:
+        pass
+
+
 @shared_task(bind=True, soft_time_limit=60 * 58, time_limit=60 * 60)
-def process_webcam_video(self, job_id: str, temp_path: str, style: Optional[str] = None) -> None:
+def process_webcam_video(
+    self,
+    job_id: str,
+    temp_path: str,
+    style: Optional[str] = None,
+    user_id: Optional[int] = None,
+    source: str = "webcam",
+) -> None:
     try:
         model_path, selected_style = resolve_style_model(settings.BASE_DIR, style)
         _update_job(job_id, status="processing", progress=0, error=None, style=selected_style)
@@ -107,7 +127,6 @@ def process_webcam_video(self, job_id: str, temp_path: str, style: Optional[str]
             if total_frames > 0:
                 progress = min(99, int((frames_done / total_frames) * 100))
             else:
-                # Unknown frame count - keep progress indeterminate but moving.
                 progress = min(99, frames_done % 100)
             _update_job(job_id, status="processing", progress=progress)
 
@@ -117,18 +136,19 @@ def process_webcam_video(self, job_id: str, temp_path: str, style: Optional[str]
             model_path,
             progress_callback=on_progress,
         )
+        video_url = f"{settings.MEDIA_URL}{output_rel}"
         _update_job(
             job_id,
             status="completed",
             progress=100,
-            video_url=f"{settings.MEDIA_URL}{output_rel}",
+            video_url=video_url,
             error=None,
             style=selected_style,
         )
+        _save_processed_video(job_id, video_url, selected_style, user_id, source)
     except Exception as exc:
         _update_job(job_id, status="failed", progress=0, error=_friendly_error(exc))
     finally:
-        # Week-1 cleanup can be basic.
         try:
             default_storage.delete(temp_path)
         except Exception:

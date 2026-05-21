@@ -84,6 +84,13 @@ flowchart TB
     RC -. not wired to StarryNight runtime APIs .- SN
 ```
 
+## Evaluation And Data Provenance Notes
+
+- StarryNight runtime APIs serve pretrained image-style checkpoints plus a ReCoNet video checkpoint.
+- The image-style training lineage follows the fast-neural-style setup built around `MS-COCO 2014 train2014` content images and per-style reference artwork.
+- The video-style training lineage lives in the standalone `Real-time-Coherent-Style-Transfer-For-Videos` folder and uses `MPI Sintel` + `FlyingChairs`.
+- Reported README metrics are benchmark metrics (`LPIPS`, `PSNR`, `MAE`, `TWE`, `FPS`), not classifier accuracy.
+
 ## Request Arrow Summary
 
 - `Browser -> React -> GET /style_transfer/models/ -> Django style_transfer`

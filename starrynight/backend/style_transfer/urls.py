@@ -9,4 +9,5 @@ urlpatterns = [
     path("video/", views.stylize_video_view, name="video"),
     path("webcam-video/", views.webcam_video_view, name="webcam-video"),
     path("video-status/<str:job_id>/", views.video_status_view, name="video-status"),
+    path("my-videos/", views.my_videos_view, name="my-videos"),
 ]

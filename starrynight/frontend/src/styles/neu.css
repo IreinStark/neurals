@@ -1,0 +1,325 @@
+/* ── Neumorphism design system ─────────────────────────────────────── */
+
+/* Light theme (default) */
+:root,
+[data-theme="light"] {
+  --neu-bg:           #E4EBF5;
+  --neu-shadow-dark:  #BABECC;
+  --neu-shadow-light: #FFFFFF;
+  --neu-text:         #31344B;
+  --neu-text-muted:   #6E7491;
+  --neu-accent:       #5C6BC0;
+  --neu-accent-hover: #3949AB;
+  --neu-danger:       #e74c3c;
+  --neu-success:      #27ae60;
+  --neu-radius:       18px;
+  --neu-radius-sm:    10px;
+}
+
+/* Dark theme */
+[data-theme="dark"] {
+  --neu-bg:           #1D2635;
+  --neu-shadow-dark:  #141B26;
+  --neu-shadow-light: #263347;
+  --neu-text:         #CDD5E0;
+  --neu-text-muted:   #7E8FA6;
+  --neu-accent:       #7986CB;
+  --neu-accent-hover: #5C6BC0;
+  --neu-danger:       #e57373;
+  --neu-success:      #81C784;
+}
+
+/* Base */
+body {
+  background-color: var(--neu-bg) !important;
+  color: var(--neu-text) !important;
+  transition: background-color 0.3s, color 0.3s;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ── Core shapes ────────────────────────────────────────────────────── */
+.neu-card {
+  background: var(--neu-bg);
+  border-radius: var(--neu-radius);
+  box-shadow:
+    8px 8px 20px var(--neu-shadow-dark),
+    -8px -8px 20px var(--neu-shadow-light);
+  border: none !important;
+  padding: 24px;
+}
+
+.neu-card-sm {
+  background: var(--neu-bg);
+  border-radius: var(--neu-radius-sm);
+  box-shadow:
+    4px 4px 10px var(--neu-shadow-dark),
+    -4px -4px 10px var(--neu-shadow-light);
+  border: none !important;
+  padding: 16px;
+}
+
+.neu-inset {
+  background: var(--neu-bg);
+  border-radius: var(--neu-radius-sm);
+  box-shadow:
+    inset 4px 4px 8px var(--neu-shadow-dark),
+    inset -4px -4px 8px var(--neu-shadow-light);
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+.neu-btn {
+  background: var(--neu-bg);
+  color: var(--neu-text);
+  border: none;
+  border-radius: var(--neu-radius-sm);
+  box-shadow:
+    4px 4px 10px var(--neu-shadow-dark),
+    -4px -4px 10px var(--neu-shadow-light);
+  padding: 10px 22px;
+  cursor: pointer;
+  font-weight: 500;
+  text-decoration: none;
+  transition: box-shadow 0.15s, transform 0.1s, color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.neu-btn:hover:not(:disabled),
+a.neu-btn:hover {
+  box-shadow:
+    6px 6px 14px var(--neu-shadow-dark),
+    -6px -6px 14px var(--neu-shadow-light);
+  color: var(--neu-accent);
+  text-decoration: none;
+}
+.neu-btn:active:not(:disabled),
+.neu-btn.pressed {
+  box-shadow:
+    inset 4px 4px 8px var(--neu-shadow-dark),
+    inset -4px -4px 8px var(--neu-shadow-light);
+  transform: scale(0.97);
+}
+.neu-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.neu-btn-accent {
+  background: var(--neu-accent);
+  color: #fff !important;
+  box-shadow:
+    4px 4px 10px var(--neu-shadow-dark),
+    -4px -4px 10px var(--neu-shadow-light);
+}
+.neu-btn-accent:hover:not(:disabled) {
+  background: var(--neu-accent-hover);
+  color: #fff !important;
+}
+
+.neu-btn-danger {
+  color: var(--neu-danger) !important;
+}
+.neu-btn-success {
+  color: var(--neu-success) !important;
+}
+
+/* Icon button — circular */
+.neu-btn-icon {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Inputs ─────────────────────────────────────────────────────────── */
+.neu-input,
+.neu-select {
+  background: var(--neu-bg) !important;
+  color: var(--neu-text) !important;
+  border: none !important;
+  border-radius: var(--neu-radius-sm) !important;
+  box-shadow:
+    inset 4px 4px 8px var(--neu-shadow-dark),
+    inset -4px -4px 8px var(--neu-shadow-light) !important;
+  padding: 10px 16px !important;
+  width: 100%;
+  outline: none !important;
+  transition: box-shadow 0.2s;
+}
+.neu-input:focus,
+.neu-select:focus {
+  box-shadow:
+    inset 5px 5px 10px var(--neu-shadow-dark),
+    inset -5px -5px 10px var(--neu-shadow-light) !important;
+}
+
+/* ── Range slider ───────────────────────────────────────────────────── */
+.neu-range {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: transparent;
+  box-shadow:
+    inset 2px 2px 5px var(--neu-shadow-dark),
+    inset -2px -2px 5px var(--neu-shadow-light);
+  outline: none;
+  cursor: pointer;
+}
+.neu-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--neu-accent);
+  box-shadow: 2px 2px 5px var(--neu-shadow-dark);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.neu-range::-webkit-slider-thumb:hover {
+  background: var(--neu-accent-hover);
+}
+
+/* ── Progress ───────────────────────────────────────────────────────── */
+.neu-progress {
+  background: var(--neu-bg);
+  border-radius: 8px;
+  box-shadow:
+    inset 3px 3px 6px var(--neu-shadow-dark),
+    inset -3px -3px 6px var(--neu-shadow-light);
+  height: 10px;
+  overflow: hidden;
+}
+.neu-progress-fill {
+  height: 100%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--neu-accent), var(--neu-accent-hover));
+  transition: width 0.4s ease;
+  min-width: 10px;
+}
+
+/* ── Navbar ─────────────────────────────────────────────────────────── */
+.neu-navbar {
+  background: var(--neu-bg) !important;
+  box-shadow: 0 4px 14px var(--neu-shadow-dark) !important;
+  border-bottom: none !important;
+  padding: 10px 20px;
+}
+.neu-navbar .nav-link a,
+.neu-navbar .navbar-brand a {
+  color: var(--neu-text) !important;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.neu-navbar .nav-link a:hover {
+  color: var(--neu-accent) !important;
+}
+
+/* ── Typography helpers ─────────────────────────────────────────────── */
+.neu-label {
+  color: var(--neu-text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.neu-text { color: var(--neu-text) !important; }
+.neu-muted { color: var(--neu-text-muted) !important; }
+.neu-accent-text { color: var(--neu-accent) !important; }
+
+/* ── Video / Image containers ───────────────────────────────────────── */
+.neu-media {
+  border-radius: var(--neu-radius);
+  overflow: hidden;
+  box-shadow:
+    6px 6px 14px var(--neu-shadow-dark),
+    -6px -6px 14px var(--neu-shadow-light);
+}
+.neu-media video,
+.neu-media img,
+.neu-media canvas {
+  width: 100%;
+  display: block;
+  border-radius: 0;
+}
+
+/* ── File input ─────────────────────────────────────────────────────── */
+.neu-file-area {
+  position: relative;
+  border-radius: var(--neu-radius);
+  box-shadow:
+    inset 6px 6px 12px var(--neu-shadow-dark),
+    inset -6px -6px 12px var(--neu-shadow-light);
+  padding: 36px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+}
+.neu-file-area:hover {
+  box-shadow:
+    inset 8px 8px 16px var(--neu-shadow-dark),
+    inset -8px -8px 16px var(--neu-shadow-light);
+}
+.neu-file-area input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Status badge ───────────────────────────────────────────────────── */
+.neu-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 20px;
+  box-shadow:
+    2px 2px 6px var(--neu-shadow-dark),
+    -2px -2px 6px var(--neu-shadow-light);
+  color: var(--neu-text-muted);
+}
+.neu-badge.live { color: var(--neu-success); }
+.neu-badge.error { color: var(--neu-danger); }
+
+/* ── Carousel overrides ─────────────────────────────────────────────── */
+.carousel .legend {
+  background: rgba(0,0,0,0.45) !important;
+  border-radius: 8px !important;
+}
+.carousel .control-arrow { background: none !important; }
+
+/* ── Alert overrides ────────────────────────────────────────────────── */
+.neu-alert {
+  border-radius: var(--neu-radius-sm);
+  box-shadow:
+    4px 4px 10px var(--neu-shadow-dark),
+    -4px -4px 10px var(--neu-shadow-light);
+  border: none;
+  padding: 12px 18px;
+  color: var(--neu-text);
+}
+.neu-alert.danger { color: var(--neu-danger); }
+.neu-alert.success { color: var(--neu-success); }
+
+/* ── Divider ────────────────────────────────────────────────────────── */
+.neu-divider {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--neu-shadow-dark) 40%,
+    var(--neu-shadow-dark) 60%,
+    transparent
+  );
+  margin: 20px 0;
+  border: none;
+}

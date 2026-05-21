@@ -1,4 +1,10 @@
-import React from "react";
+const DownloadIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7 10 12 15 17 10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+);
 
 const VideoComparison = ({
   originalUrl,
@@ -6,69 +12,56 @@ const VideoComparison = ({
   onReset,
   originalLabel = "Original Capture",
   processedLabel = "Styled Capture",
-  downloadLabel = "Download Styled Video",
 }) => {
-  if (!originalUrl && !processedUrl) {
-    return null;
-  }
-
-  const renderVideo = (label, url, emptyText) => {
-    if (!url) {
-      return <p>{emptyText}</p>;
-    }
-
-    return (
-      <>
-        <video
-          key={url}
-          src={url}
-          controls
-          preload="metadata"
-          style={{ width: "100%" }}
-          onLoadedMetadata={(event) => {
-            console.log(`${label} metadata loaded:`, {
-              src: event.currentTarget.currentSrc || url,
-              duration: event.currentTarget.duration,
-              width: event.currentTarget.videoWidth,
-              height: event.currentTarget.videoHeight,
-            });
-          }}
-          onError={(event) => {
-            console.error(`${label} video failed to load:`, {
-              src: event.currentTarget.currentSrc || url,
-              error: event.currentTarget.error,
-            });
-          }}
-        />
-        <small className="text-muted d-block mt-2" style={{ wordBreak: "break-all" }}>
-          {label} source: {url}
-        </small>
-      </>
-    );
-  };
+  if (!originalUrl && !processedUrl) return null;
 
   return (
-    <div className="mt-4">
-      <div className="row">
-        <div className="col-md-6 mb-3">
-          <h6>{originalLabel}</h6>
-          {renderVideo(originalLabel, originalUrl, "No input clip")}
-        </div>
-        <div className="col-md-6 mb-3">
-          <h6>{processedLabel}</h6>
-          {processedUrl ? (
-            <>
-              {renderVideo(processedLabel, processedUrl, "Not ready yet")}
-              <a className="btn btn-outline-light btn-sm mt-2" href={processedUrl} download>
-                {downloadLabel}
-              </a>
-            </>
+    <div style={{ marginTop: "20px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+        <div className="neu-card-sm">
+          <p className="neu-label" style={{ marginBottom: "10px" }}>{originalLabel}</p>
+          {originalUrl ? (
+            <div className="neu-media">
+              <video key={originalUrl} src={originalUrl} controls preload="metadata" style={{ width: "100%" }}
+                onError={(e) => console.error("Original video error:", e.currentTarget.error)} />
+            </div>
           ) : (
-            <p>Not ready yet</p>
+            <p className="neu-muted" style={{ fontSize: "0.85rem" }}>No clip yet</p>
+          )}
+        </div>
+
+        <div className="neu-card-sm">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+            <p className="neu-label" style={{ margin: 0 }}>{processedLabel}</p>
+            {processedUrl && (
+              <a
+                href={processedUrl}
+                download="styled-capture.mp4"
+                className="neu-btn neu-btn-icon"
+                title="Download styled video"
+                style={{ width: "34px", height: "34px" }}
+              >
+                <DownloadIcon />
+              </a>
+            )}
+          </div>
+          {processedUrl ? (
+            <div className="neu-media">
+              <video key={processedUrl} src={processedUrl} controls preload="metadata" style={{ width: "100%" }}
+                onError={(e) => console.error("Styled video error:", e.currentTarget.error)} />
+            </div>
+          ) : (
+            <p className="neu-muted" style={{ fontSize: "0.85rem" }}>Not ready yet</p>
           )}
         </div>
       </div>
-      <button type="button" className="btn btn-secondary btn-sm" onClick={onReset}>
+
+      <button
+        type="button"
+        className="neu-btn"
+        onClick={onReset}
+        style={{ marginTop: "16px" }}
+      >
         Try Again
       </button>
     </div>

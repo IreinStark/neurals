@@ -85,7 +85,7 @@ const WebcamCapture = ({
 
   return (
     <div>
-      {error ? <div className="alert alert-danger">{error}</div> : null}
+      {error ? <div className="neu-alert danger" style={{ marginBottom: "8px" }}>{error}</div> : null}
       <video
         ref={videoRef}
         playsInline

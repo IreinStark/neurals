@@ -1,4 +1,14 @@
-import React from "react";
+const RecordIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="12" cy="12" r="8"/>
+  </svg>
+);
+
+const StopIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <rect x="4" y="4" width="16" height="16" rx="2"/>
+  </svg>
+);
 
 const RecordControls = ({
   isRecording,
@@ -14,42 +24,63 @@ const RecordControls = ({
 }) => {
   const seconds = Math.floor(recordingTimeMs / 1000);
   const maxSeconds = Math.floor(maxDurationMs / 1000);
+  const progressPct = Math.min(100, (recordingTimeMs / maxDurationMs) * 100);
 
   return (
-    <div className="mt-3">
-      <div className="d-flex align-items-center flex-wrap">
+    <div className="neu-card" style={{ marginTop: "16px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "14px" }}>
         <button
           type="button"
-          className="btn btn-success mr-2 mb-2"
+          className="neu-btn neu-btn-success"
           disabled={isRecording}
           onClick={onStartRecording}
+          style={{ gap: "8px" }}
         >
-          Start Recording
+          <RecordIcon />
+          Record
         </button>
         <button
           type="button"
-          className="btn btn-danger mr-2 mb-2"
+          className="neu-btn neu-btn-danger"
           disabled={!isRecording}
           onClick={onStopRecording}
+          style={{ gap: "8px" }}
         >
-          Stop Recording
+          <StopIcon />
+          Stop
         </button>
-        {actionLabel && onAction ? (
+        {actionLabel && onAction && (
           <button
             type="button"
-            className="btn btn-primary mb-2"
+            className="neu-btn neu-btn-accent"
             disabled={!canAction || isRecording || isProcessing}
             onClick={onAction}
           >
             {actionLabel}
           </button>
-        ) : null}
+        )}
       </div>
-      <p className="mb-1">
-        Record: {seconds}s / {maxSeconds}s
+
+      {isRecording && (
+        <div style={{ marginBottom: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+            <span className="neu-muted" style={{ fontSize: "0.8rem" }}>Recording</span>
+            <span className="neu-accent-text" style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+              {seconds}s / {maxSeconds}s
+            </span>
+          </div>
+          <div className="neu-progress">
+            <div className="neu-progress-fill" style={{ width: `${Math.max(2, progressPct)}%` }} />
+          </div>
+        </div>
+      )}
+
+      <p className="neu-muted" style={{ fontSize: "0.8rem", margin: "0 0 4px" }}>
+        Keep clips short for faster processing.
       </p>
-      <p className="mb-1 text-muted">Best results: keep webcam clips short so processing can finish quickly.</p>
-      <p className="mb-0">Status: {statusText}</p>
+      <p className="neu-text" style={{ fontSize: "0.85rem", margin: 0 }}>
+        Status: <span className="neu-accent-text">{statusText}</span>
+      </p>
     </div>
   );
 };

@@ -174,10 +174,8 @@ const StylePreview = ({
         height={height}
         style={{ width: "100%", borderRadius: "8px", background: "#111" }}
       />
-      <small className="text-muted">
-        Live model status:{" "}
-        {status === "loading" ? "Loading" : status === "ready" ? "Live ready" : "Fallback mode"}{" "}
-        ({statusMessage})
+      <small className="neu-muted" style={{ fontSize: "0.75rem", display: "block", marginTop: "6px" }}>
+        {status === "loading" ? "Loading model…" : status === "ready" ? "Live inference active" : `Fallback — ${statusMessage}`}
       </small>
     </div>
   );

@@ -1,33 +1,37 @@
-import React from "react";
-
 const ProcessingStatus = ({ jobId, status, progress, error }) => {
-  if (!jobId) {
-    return null;
-  }
+  if (!jobId || status === "idle") return null;
 
   const safeProgress = Math.max(0, Math.min(100, progress || 0));
+
   return (
-    <div className="mt-3">
-      <p className="mb-1">
-        Job: <code>{jobId}</code>
-      </p>
-      <p className="mb-1">
-        Processing status: <strong>{status}</strong>
-      </p>
-      <div className="progress mb-2" style={{ height: "10px" }}>
-        <div
-          className="progress-bar"
-          role="progressbar"
-          style={{ width: `${safeProgress}%` }}
-          aria-valuenow={safeProgress}
-          aria-valuemin="0"
-          aria-valuemax="100"
-        />
+    <div className="neu-card-sm" style={{ marginTop: "12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+        <span className="neu-muted" style={{ fontSize: "0.8rem" }}>
+          Job: <span style={{ fontFamily: "monospace" }}>{jobId.slice(0, 16)}…</span>
+        </span>
+        <span
+          className="neu-badge"
+          style={{
+            color: status === "completed"
+              ? "var(--neu-success)"
+              : status === "failed"
+                ? "var(--neu-danger)"
+                : "var(--neu-accent)",
+          }}
+        >
+          {status}
+        </span>
       </div>
-      {error ? <div className="alert alert-danger py-1">{error}</div> : null}
+      <div className="neu-progress">
+        <div className="neu-progress-fill" style={{ width: `${Math.max(2, safeProgress)}%` }} />
+      </div>
+      {error && (
+        <div className="neu-alert danger" style={{ marginTop: "10px", fontSize: "0.85rem" }}>
+          {error}
+        </div>
+      )}
     </div>
   );
 };
 
 export default ProcessingStatus;
-
