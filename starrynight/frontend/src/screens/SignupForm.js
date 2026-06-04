@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Form, Button, Row, Col } from "react-bootstrap";
 import AlertBox from "../components/AlertBox";
 import Loader from "../components/Loader";
 import FormContainer from "../components/FormContainer";
-import axios from "axios";
 
 function SignupForm() {
   const [name, setName] = useState("");
@@ -13,17 +12,16 @@ function SignupForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState("");
+  const [loading] = useState("");
 
   const submitHandler = (e) => {
     e.preventDefault();
 
-    if (password != confirmPassword) {
+    if (password !== confirmPassword) {
       setMessage("Passwords do not match");
     } else {
       var nameArray = name.split(/(\s+)/);
-      if (nameArray.length == 1) {
+      if (nameArray.length === 1) {
         nameArray.push(" ");
       }
       var user = {
@@ -40,7 +38,7 @@ function SignupForm() {
         body: JSON.stringify(user),
         method: "POST",
       }).then((response) => {
-        if (response.status == 400) {
+        if (response.status === 400) {
           setMessage("Couldn't sign up");
         } else {
           window.location.replace("/");

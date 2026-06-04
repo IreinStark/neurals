@@ -1,9 +1,9 @@
-import torch
 import torch.nn as nn
+
 
 class TransformerNetwork(nn.Module):
     """Feedforward Transformation Network without Tanh
-    reference: https://arxiv.org/abs/1603.08155 
+    reference: https://arxiv.org/abs/1603.08155
     exact architecture: https://cs.stanford.edu/people/jcjohns/papers/fast-style/fast-style-supp.pdf
     """
     def __init__(self):
@@ -17,10 +17,10 @@ class TransformerNetwork(nn.Module):
             nn.ReLU()
         )
         self.ResidualBlock = nn.Sequential(
-            ResidualLayer(128, 3), 
-            ResidualLayer(128, 3), 
-            ResidualLayer(128, 3), 
-            ResidualLayer(128, 3), 
+            ResidualLayer(128, 3),
+            ResidualLayer(128, 3),
+            ResidualLayer(128, 3),
+            ResidualLayer(128, 3),
             ResidualLayer(128, 3)
         )
         self.DeconvBlock = nn.Sequential(
@@ -37,8 +37,9 @@ class TransformerNetwork(nn.Module):
         out = self.DeconvBlock(x)
         return out
 
+
 class TransformerNetworkTanh(TransformerNetwork):
-    """A modification of the transformation network that uses Tanh function as output 
+    """A modification of the transformation network that uses Tanh function as output
     This follows more closely the architecture outlined in the original paper's supplementary material
     his model produces darker images and provides retro styling effect
     Reference: https://cs.stanford.edu/people/jcjohns/papers/fast-style/fast-style-supp.pdf
@@ -61,6 +62,7 @@ class TransformerNetworkTanh(TransformerNetwork):
     def forward(self, x):
         return super(TransformerNetworkTanh, self).forward(x) * self.tanh_multiplier
 
+
 class ConvLayer(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, norm="instance"):
         super(ConvLayer, self).__init__()
@@ -73,19 +75,20 @@ class ConvLayer(nn.Module):
 
         # Normalization Layers
         self.norm_type = norm
-        if (norm=="instance"):
+        if norm == "instance":
             self.norm_layer = nn.InstanceNorm2d(out_channels, affine=True)
-        elif (norm=="batch"):
+        elif norm == "batch":
             self.norm_layer = nn.BatchNorm2d(out_channels, affine=True)
 
     def forward(self, x):
         x = self.reflection_pad(x)
         x = self.conv_layer(x)
-        if (self.norm_type=="None"):
+        if self.norm_type == "None":
             out = x
         else:
             out = self.norm_layer(x)
         return out
+
 
 class ResidualLayer(nn.Module):
     """
@@ -106,24 +109,27 @@ class ResidualLayer(nn.Module):
         out = out + identity             # add residual
         return out
 
+
 class DeconvLayer(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, output_padding, norm="instance"):
         super(DeconvLayer, self).__init__()
 
-        # Transposed Convolution 
+        # Transposed Convolution
         padding_size = kernel_size // 2
-        self.conv_transpose = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding_size, output_padding)
+        self.conv_transpose = nn.ConvTranspose2d(
+            in_channels, out_channels, kernel_size, stride, padding_size, output_padding
+        )
 
         # Normalization Layers
         self.norm_type = norm
-        if (norm=="instance"):
+        if norm == "instance":
             self.norm_layer = nn.InstanceNorm2d(out_channels, affine=True)
-        elif (norm=="batch"):
+        elif norm == "batch":
             self.norm_layer = nn.BatchNorm2d(out_channels, affine=True)
 
     def forward(self, x):
         x = self.conv_transpose(x)
-        if (self.norm_type=="None"):
+        if self.norm_type == "None":
             out = x
         else:
             out = self.norm_layer(x)

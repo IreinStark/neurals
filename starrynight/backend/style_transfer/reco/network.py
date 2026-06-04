@@ -1,10 +1,11 @@
 import torch
-import torch.nn as nn
 import numpy as np
 from torchvision.models import vgg16
 from collections import namedtuple
 
 # From https://github.com/pytorch/examples/blob/master/fast_neural_style/neural_style/vgg.py
+
+
 class Vgg16(torch.nn.Module):
     def __init__(self, device='cpu'):
         super(Vgg16, self).__init__()
@@ -21,7 +22,7 @@ class Vgg16(torch.nn.Module):
             self.slice3.add_module(str(x), vgg_pretrained_features[x].to(device))
         for x in range(16, 23):
             self.slice4.add_module(str(x), vgg_pretrained_features[x].to(device))
-        
+
         for param in self.parameters():
             param.requires_grad = False
 

@@ -238,7 +238,8 @@ class ResultsTracker:
             for row in self.results
         )
         image_blocks = "\n".join(
-            f'<div><h3>{html.escape(path.stem)}</h3><img src="{html.escape(path.name)}" style="max-width:100%;border:1px solid #ccc;" /></div>'
+            f'<div><h3>{html.escape(path.stem)}</h3>'
+            f'<img src="{html.escape(path.name)}" style="max-width:100%;border:1px solid #ccc;" /></div>'
             for path in available_images
         )
         report = f"""<!doctype html>

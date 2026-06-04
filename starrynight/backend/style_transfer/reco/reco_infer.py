@@ -70,7 +70,7 @@ def _extract_state_dict(raw_obj: object) -> Mapping[str, torch.Tensor]:
         if isinstance(value, torch.Tensor):
             cleaned_name = str(name)
             if cleaned_name.startswith("module."):
-                cleaned_name = cleaned_name[len("module.") :]
+                cleaned_name = cleaned_name[len("module."):]
             state_dict[cleaned_name] = value
 
     if not state_dict:

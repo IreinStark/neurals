@@ -10,6 +10,7 @@ from .fast_style.api import stlye_transfer
 from .job_state import update_job_state
 from .reco.style_catalog import resolve_style_model
 
+
 def _update_job(job_id: str, **payload) -> None:
     update_job_state(job_id, **payload)
 

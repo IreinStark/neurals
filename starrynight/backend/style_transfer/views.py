@@ -98,7 +98,6 @@ def stylize_image_view(request):
             styled_rgb = cv2.cvtColor(styled_bgr, cv2.COLOR_BGR2RGB)
 
             if intensity < 1.0:
-                import numpy as np
                 styled_rgb = (
                     intensity * styled_rgb.astype(float)
                     + (1.0 - intensity) * original_rgb.astype(float)

@@ -53,7 +53,10 @@ def run_smoke(base_url: str, timeout_seconds: int) -> None:
         available_styles = [item for item in styles_payload.get("styles", []) if item.get("available")]
         if not available_styles:
             raise RuntimeError("No available webcam styles returned by API")
-        selected_style = default_style if any(s["id"] == default_style for s in available_styles) else available_styles[0]["id"]
+        selected_style = (
+            default_style if any(s["id"] == default_style for s in available_styles)
+            else available_styles[0]["id"]
+        )
         print(f"Using style: {selected_style}", flush=True)
 
         upload_start = time.perf_counter()

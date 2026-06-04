@@ -1,10 +1,6 @@
 import torch
-from torch.cuda import random
 from style_transfer.fast_style import utils, transformer
-import os
-from torchvision import transforms
 import time
-import random
 
 STYLE_TRANSFORM_PATH = "transforms/udnie_aggressive.pth"
 PRESERVE_COLOR = False
@@ -52,6 +48,6 @@ def stylize(model=None, content_image=None, output_path='output/result.jpg', con
             generated_image = utils.transfer_color(
                 content_image, generated_image)
         print("Transfer Time: {}".format(time.time() - starttime))
-        #utils.saveimg(generated_image, str(random.randint(1,100000))+output_path)
+        # utils.saveimg(generated_image, str(random.randint(1,100000))+output_path)
         # utils.show(generated_image)
     return generated_image

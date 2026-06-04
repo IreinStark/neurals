@@ -46,7 +46,7 @@ def saveimg(img, image_path):
 
 def itot(img, max_size=None):
     # Rescale the image
-    if (max_size == None):
+    if max_size is None:
         itot_t = transforms.Compose([
             # transforms.ToPILImage(),
             transforms.ToTensor(),
@@ -80,7 +80,7 @@ def ttoi(tensor):
 
     # Remove the batch_size dimension
     tensor = tensor.squeeze()
-    #img = ttoi_t(tensor)
+    # img = ttoi_t(tensor)
     img = tensor.cpu().numpy()
 
     # Transpose from [C, H, W] -> [H, W, C]
@@ -127,7 +127,7 @@ def plot_loss_hist(c_loss, s_loss, total_loss, title="Loss History"):
 
 
 class ImageFolderWithPaths(datasets.ImageFolder):
-    """Custom dataset that includes image file paths. 
+    """Custom dataset that includes image file paths.
     Extends torchvision.datasets.ImageFolder()
     Reference: https://discuss.pytorch.org/t/dataloader-filenames-in-each-batch/4212/2
     """

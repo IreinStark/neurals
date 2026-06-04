@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
+import sys
+
 import cv2
 import numpy as np
 import torch
@@ -17,8 +19,6 @@ REPO_BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = REPO_BACKEND_DIR.parent
 CACHE_DIR = REPO_BACKEND_DIR / ".cache"
 
-import sys
-
 if str(REPO_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_BACKEND_DIR))
 
@@ -27,13 +27,13 @@ os.environ.setdefault("MPLCONFIGDIR", str(CACHE_DIR / "matplotlib"))
 (CACHE_DIR / "torch").mkdir(parents=True, exist_ok=True)
 (CACHE_DIR / "matplotlib").mkdir(parents=True, exist_ok=True)
 
-from style_transfer.fast_style import utils as fast_utils
-from style_transfer.fast_style.api import stlye_transfer
-from style_transfer.fast_style.stylize import load_model as load_fast_style_model
-from style_transfer.reco.model_utils import preferred_reconet_model_path, resolve_existing_reconet_model
-from style_transfer.reco.reco_infer import load_model as load_reconet_model
-from style_transfer.reco.reco_infer import stylize_video
-from style_transfer.reco.style_catalog import DEFAULT_STYLE_ID, available_styles, resolve_style_model
+from style_transfer.fast_style import utils as fast_utils  # noqa: E402
+from style_transfer.fast_style.api import stlye_transfer  # noqa: E402
+from style_transfer.fast_style.stylize import load_model as load_fast_style_model  # noqa: E402
+from style_transfer.reco.model_utils import preferred_reconet_model_path, resolve_existing_reconet_model  # noqa: E402
+from style_transfer.reco.reco_infer import load_model as load_reconet_model  # noqa: E402
+from style_transfer.reco.reco_infer import stylize_video  # noqa: E402
+from style_transfer.reco.style_catalog import DEFAULT_STYLE_ID, available_styles, resolve_style_model  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:

@@ -17,7 +17,7 @@ REPO_DIR = BACKEND_DIR.parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from results_tracker import ResultsTracker
+from results_tracker import ResultsTracker  # noqa: E402
 
 
 def evaluation_env() -> dict:

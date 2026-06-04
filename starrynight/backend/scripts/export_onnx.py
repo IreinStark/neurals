@@ -20,9 +20,9 @@ MODELS_OUTPUT_DIR = REPO_DIR / "frontend" / "public" / "models"
 
 sys.path.insert(0, str(BACKEND_DIR))
 
-import torch
-from style_transfer.fast_style.transformer import TransformerNetwork
-from style_transfer.reco.style_catalog import STYLE_MODEL_CANDIDATES
+import torch  # noqa: E402
+from style_transfer.fast_style.transformer import TransformerNetwork  # noqa: E402
+from style_transfer.reco.style_catalog import STYLE_MODEL_CANDIDATES  # noqa: E402
 
 # 320x180 is 16:9 half-HD — fast in browser while showing clear style
 EXPORT_H = 180
