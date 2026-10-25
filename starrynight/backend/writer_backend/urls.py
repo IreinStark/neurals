@@ -8,7 +8,8 @@ urlpatterns = [
     # path("", admin.site.urls),
     path("admin/", admin.site.urls),
     path("accounts/", include("accounts.urls")),
-    path("style_transfer/", include("style_transfer.urls"))
+    path("style_transfer/", include("style_transfer.urls")),
+    path("api/v2/", include("api_v2.urls")),
 ]
 
 if settings.DEBUG:

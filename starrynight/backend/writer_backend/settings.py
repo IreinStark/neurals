@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "accounts",
     "style_transfer",
+    "api_v2",
 ]
 
 REST_FRAMEWORK = {
