@@ -1,9 +1,13 @@
 name: CI
 
+# Manual-only for now: the GitHub account's Actions billing is locked, so automatic
+# runs fail before starting. Run from the Actions tab ("Run workflow"), or restore the
+# push / pull_request triggers below once billing is sorted.
 on:
-  push:
-    branches: [main, "gp2/**"]
-  pull_request:
+  workflow_dispatch:
+  # push:
+  #   branches: [main, "gp2/**"]
+  # pull_request:
 
 concurrency:
   group: ci-${{ github.ref }}
