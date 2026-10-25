@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Runs the local checks before every `git push` (replacement for GitHub Actions CI).
+# Skip once with:  git push --no-verify
+ROOT="$(git rev-parse --show-toplevel)"
+echo "pre-push: running scripts/check.sh --quick (skip with: git push --no-verify)"
+if ! "$ROOT/scripts/check.sh" --quick; then
+  echo
+  echo "pre-push: checks failed — push cancelled. Fix the errors above, or use 'git push --no-verify' to push anyway."
+  exit 1
+fi

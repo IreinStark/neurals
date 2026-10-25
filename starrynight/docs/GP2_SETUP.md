@@ -44,10 +44,22 @@ Tests: `python manage.py test api_v2 style_transfer.tests`
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres starrynight/supabase/scripts/test-db.sh
 ```
 
-## 4. CI
+## 4. Checks (local, instead of GitHub Actions)
 
-`.github/workflows/ci.yml` runs three jobs on every push and PR:
+GitHub Actions is paused because of the account billing lock (`.github/workflows/ci.yml` now only runs when started by hand). The same checks run locally:
 
-- **web:** lint → typecheck → unit tests with coverage → build → Playwright + axe
-- **backend:** Django check + tests, using CPU-only PyTorch
-- **database:** migrations and RLS tests against a Postgres 16 service
+```bash
+scripts/install-hooks.sh     # once per clone: every `git push` now runs the quick checks first
+scripts/check.sh             # full run: web lint/types/unit/build + Django + database RLS
+scripts/check.sh --quick     # what the pre-push hook runs (no production build)
+scripts/check.sh --e2e       # full run plus Playwright browser + accessibility tests
+scripts/check.sh --only web  # one section: web | backend | database
+```
+
+- A failing check **cancels the push** and prints the error. `git push --no-verify` skips the checks once.
+- If Python (with Django + PyTorch) or Postgres can't be found, that section is **skipped** with a hint and does not block the push. Use `--strict` to make skips fail.
+  - Python: the script looks for `starrynight/.venv` (made by `apply_fixes.sh`) or `PYTHON=/path/to/python`.
+  - Postgres: `brew install postgresql@16 && brew services start postgresql@16`, or set `DATABASE_URL`.
+- Web needs Node ≥ 20.9: `cd starrynight/web && nvm use` (reads `web/.nvmrc`, which is 22). The GP1 `frontend/` stays on Node 18.
+
+To bring back GitHub Actions after the billing is fixed, uncomment the `push` / `pull_request` triggers at the top of `.github/workflows/ci.yml`.
