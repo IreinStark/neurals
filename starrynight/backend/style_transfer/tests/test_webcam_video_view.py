@@ -1,4 +1,3 @@
-import json
 from unittest.mock import MagicMock, patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -40,7 +39,7 @@ class WebcamVideoViewDispatchTests(SimpleTestCase):
         thread_cls.return_value = thread_instance
 
         response = webcam_video_view(self._build_request())
-        payload = json.loads(response.content)
+        payload = response.data  # DRF Response from @api_view (unrendered under RequestFactory)
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload["execution_mode"], "thread")
@@ -66,7 +65,7 @@ class WebcamVideoViewDispatchTests(SimpleTestCase):
         save_mock,
     ):
         response = webcam_video_view(self._build_request())
-        payload = json.loads(response.content)
+        payload = response.data  # DRF Response from @api_view (unrendered under RequestFactory)
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload["execution_mode"], "celery")
