@@ -27,12 +27,37 @@ def _friendly_error(exc: Exception) -> str:
     return message or "Processing failed due to an unexpected error."
 
 
+# Browser-playable first: H.264 (needs an OpenCV build with an H.264 encoder, e.g. macOS),
+# then VP8/VP9 WebM (available in the pip Linux wheels), then legacy fallbacks that
+# browsers generally can't play.
+VIDEO_WRITER_CANDIDATES = (("avc1", ".mp4"), ("VP80", ".webm"), ("VP90", ".webm"), ("mp4v", ".mp4"), ("MJPG", ".avi"))
+
+
+def open_browser_playable_writer(output_abs: str, fps: float, frame_size):
+    """Open the first working cv2.VideoWriter. Returns (writer, actual_output_path)."""
+    import cv2
+
+    stem = os.path.splitext(output_abs)[0]
+    for fourcc_text, ext in VIDEO_WRITER_CANDIDATES:
+        path = stem + ext
+        candidate = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*fourcc_text), fps, frame_size)
+        if candidate.isOpened():
+            return candidate, path
+        candidate.release()
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    raise ValueError(f"Unable to open output video writer: {output_abs}")
+
+
 def _process_webcam_video_fast(
     input_abs: str,
     output_abs: str,
     model_path: str,
     progress_callback,
-) -> None:
+) -> str:
+    """Stylize with the fast TransformerNet path. Returns the path actually written."""
     from math import ceil
 
     import cv2
@@ -54,22 +79,11 @@ def _process_webcam_video_fast(
     output_fps = max(1.0, float(fps) / sample_stride)
     frame_size = (640, 360)
 
-    writer = None
-    for fourcc_text in ("avc1", "mp4v", "MJPG"):
-        candidate = cv2.VideoWriter(
-            output_abs,
-            cv2.VideoWriter_fourcc(*fourcc_text),
-            output_fps,
-            frame_size,
-        )
-        if candidate.isOpened():
-            writer = candidate
-            break
-        candidate.release()
-
-    if writer is None:
+    try:
+        writer, output_abs = open_browser_playable_writer(output_abs, output_fps, frame_size)
+    except ValueError:
         capture.release()
-        raise ValueError(f"Unable to open output video writer: {output_abs}")
+        raise
 
     model = StyleTransferConfig.get_loaded_model(model_path)
 
@@ -91,6 +105,7 @@ def _process_webcam_video_fast(
     finally:
         capture.release()
         writer.release()
+    return output_abs
 
 
 def _save_processed_video(job_id: str, video_url: str, style: str, user_id: Optional[int], source: str) -> None:
@@ -131,12 +146,13 @@ def process_webcam_video(
                 progress = min(99, frames_done % 100)
             _update_job(job_id, status="processing", progress=progress)
 
-        _process_webcam_video_fast(
+        written_abs = _process_webcam_video_fast(
             input_abs,
             output_abs,
             model_path,
             progress_callback=on_progress,
         )
+        output_rel = os.path.join(os.path.dirname(output_rel), os.path.basename(written_abs))
         video_url = f"{settings.MEDIA_URL}{output_rel}"
         _update_job(
             job_id,

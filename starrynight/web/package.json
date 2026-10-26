@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "sync-models": "node scripts/sync-models.mjs",
-    "predev": "node scripts/sync-models.mjs",
+    "predev": "node scripts/sync-models.mjs && node scripts/build-studio.mjs",
     "dev": "next dev",
-    "prebuild": "node scripts/sync-models.mjs",
+    "prebuild": "node scripts/sync-models.mjs && node scripts/build-studio.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "build-studio": "node scripts/build-studio.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -45,6 +46,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/coverage-v8": "^5.0.5",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "15.5.28",
     "jsdom": "^30.1.3",

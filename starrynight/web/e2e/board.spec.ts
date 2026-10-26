@@ -142,7 +142,6 @@ test.describe("collaborative board", () => {
     const page = await openBoard(browser, room());
     await page.evaluate(() => {
       const hook = (window as unknown as { __board: { doc: import("yjs").Doc } }).__board;
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const doc = hook.doc;
       const nodesMap = doc.getMap("nodes");
       const order = doc.getArray("order");

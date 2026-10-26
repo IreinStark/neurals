@@ -1,8 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-test("home page renders and has no critical/serious a11y violations", async ({ page }) => {
-  await page.goto("/");
+test("dev status page renders and has no critical/serious a11y violations", async ({ page }) => {
+  await page.goto("/dev");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("StarryNight Board");
   const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   const blocking = results.violations.filter((v) => v.impact === "critical" || v.impact === "serious");

@@ -30,7 +30,9 @@ npm install
 npm run dev                  # ws://127.0.0.1:1999. Dev auth is on: anyone can join, and the role comes from ?role=
 ```
 
-With both running, open http://localhost:3000 and click **New board**. To test with a second person, open the same board link in another browser window (or on another device on your network). Add `?role=viewer` to the link to join as a read-only viewer.
+With both running, open http://localhost:3000. That's the **Neural Style Studio** (the designer's UI, wired to the real engine; see [STUDIO_INTEGRATION.md](STUDIO_INTEGRATION.md)). Sign-in, Video Upload and password reset also need the Django backend (§2). Style previews and the webcam run entirely in the browser.
+
+The service status page and the **New board** button are at http://localhost:3000/dev. To test with a second person, open the same board link in another browser window (or on another device on your network). Add `?role=viewer` to the link to join as a read-only viewer.
 
 **Canvas shortcuts:**
 
