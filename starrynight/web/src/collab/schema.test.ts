@@ -119,6 +119,18 @@ describe("CRDT merge behaviour", () => {
     expect(listNodes(b).map((n) => n.id)).toEqual(["live"]);
   });
 
+  it("merges concurrent typing in different parts of a sticky note", () => {
+    const a = new Y.Doc();
+    const b = new Y.Doc();
+    addNode(a, { ...base, id: "s", type: "sticky", width: 100, height: 100, text: "hello world", color: "#ff0" });
+    sync(a, b);
+    updateNode(a, "s", { text: "Hello world" }); // A capitalises the start
+    updateNode(b, "s", { text: "hello world!" }); // B appends at the end
+    sync(a, b);
+    expect(listNodes(a)[0]).toMatchObject({ text: "Hello world!" });
+    expect(listNodes(b)).toEqual(listNodes(a));
+  });
+
   it("undo only reverts the local user's changes", () => {
     const [a, b] = connectedPair();
     const undoA = createUndoManager(a);

@@ -85,6 +85,27 @@ export function addNode(doc: Y.Doc, input: NewNode, now: number = Date.now()): s
   return id;
 }
 
+/**
+ * Replace a Y.Text's content with `next` using a minimal single-range edit (common
+ * prefix/suffix kept), so two people typing in different parts of a sticky note merge
+ * instead of overwriting each other.
+ */
+export function applyTextDiff(text: Y.Text, next: string): void {
+  const prev = text.toString();
+  if (prev === next) return;
+  let start = 0;
+  const maxStart = Math.min(prev.length, next.length);
+  while (start < maxStart && prev.charCodeAt(start) === next.charCodeAt(start)) start++;
+  let endPrev = prev.length;
+  let endNext = next.length;
+  while (endPrev > start && endNext > start && prev.charCodeAt(endPrev - 1) === next.charCodeAt(endNext - 1)) {
+    endPrev--;
+    endNext--;
+  }
+  if (endPrev > start) text.delete(start, endPrev - start);
+  if (endNext > start) text.insert(start, next.slice(start, endNext));
+}
+
 type PartialUnion<T> = T extends unknown ? Partial<T> : never;
 export type UpdatableFields = PartialUnion<DistributiveOmit<BoardNode, "id" | "type" | "createdBy" | "createdAt">>;
 
@@ -97,8 +118,7 @@ export function updateNode(doc: Y.Doc, id: string, patch: UpdatableFields, now: 
       if (value === undefined) continue;
       const current = map.get(key);
       if (current instanceof Y.Text && typeof value === "string") {
-        current.delete(0, current.length);
-        current.insert(0, value);
+        applyTextDiff(current, value);
       } else {
         map.set(key, value);
       }

@@ -23,10 +23,20 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
-    command: `npm run start -- -p ${PORT}`,
-    url: `http://127.0.0.1:${PORT}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      command: `npm run start -- -p ${PORT}`,
+      url: `http://127.0.0.1:${PORT}`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      // Board sync server (dev auth). Needs `npm install` in ../party once.
+      command: "npm run dev",
+      cwd: "../party",
+      url: "http://127.0.0.1:1999/parties/main/healthcheck",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+  ],
 });

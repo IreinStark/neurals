@@ -1,0 +1,6 @@
+{
+  "$schema": "https://www.partykit.io/schema.json",
+  "name": "starrynight-board",
+  "main": "src/server.ts",
+  "compatibilityDate": "2024-07-18"
+}

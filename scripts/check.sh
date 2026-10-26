@@ -3,11 +3,11 @@
 # Local replacement for the GitHub Actions CI (.github/workflows/ci.yml).
 # Runs the same checks on your own machine. Works with macOS's default bash 3.2.
 #
-#   scripts/check.sh            full run: web (lint, types, unit, build) + backend + database
+#   scripts/check.sh            full run: web (lint, types, unit, build) + sync server + backend + database
 #   scripts/check.sh --quick    what the pre-push hook runs: skips the production build
 #   scripts/check.sh --e2e      full run + Playwright browser/accessibility tests
 #   scripts/check.sh --strict   treat "skipped" sections (missing Python/Postgres) as failures
-#   scripts/check.sh --only web|backend|database   run one section
+#   scripts/check.sh --only web|party|backend|database   run one section
 #
 # Environment overrides:
 #   PYTHON=/path/to/python      Python with the backend requirements installed
@@ -89,6 +89,20 @@ if want web; then
         step "e2e + a11y (playwright)" "$APP/web" npx playwright test
       fi
     fi
+  fi
+fi
+
+# ----------------------------------------------------------- sync server ---
+if want party; then
+  section "Sync server (PartyKit) — starrynight/party"
+  if ! command -v node >/dev/null 2>&1; then
+    skip "party" "node not found"
+  else
+    if [ ! -d "$APP/party/node_modules" ]; then
+      step "install dependencies (npm ci)" "$APP/party" npm ci --no-audit --no-fund
+    fi
+    step "typecheck (tsc)" "$APP/party" npm run --silent typecheck
+    step "unit tests (vitest)" "$APP/party" npm run --silent test
   fi
 fi
 

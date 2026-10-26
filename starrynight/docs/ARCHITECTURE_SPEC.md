@@ -148,6 +148,8 @@ Y.Doc
 ## 5. Sync server contract (`party/`)
 
 - **URL:** `ws(s)://<PARTYKIT_HOST>/parties/main/<roomId>?token=<supabase_access_token>`
+- **Implementation:** `party/src/server.ts`. Authorization runs in `onBeforeConnect`, so rejected clients get a plain HTTP 400/401/403 before the WebSocket upgrade, and the token is stripped from the URL before room code sees it.
+- **Dev mode:** if `SUPABASE_URL` is unset and `ALLOW_DEV_AUTH=true` (set by `npm run dev`), anyone may join and the role comes from `?role=`. With neither configured, every connection is refused (fail closed).
 - **`onConnect`:**
   1. Verify the JWT against the Supabase JWKS (`<SUPABASE_URL>/auth/v1/.well-known/jwks.json`). If it fails, close with code `4001`.
   2. Look up `room_members(room_id, user_id)` with the service role. No row → close `4003`.

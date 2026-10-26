@@ -32,6 +32,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:coverage
       - run: npm run build
+      - name: Install sync server (used by the E2E tests)
+        working-directory: starrynight/party
+        run: npm ci && npm run typecheck && npm test
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: E2E smoke + axe-core

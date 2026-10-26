@@ -22,6 +22,37 @@ npm run dev                  # http://localhost:3000 (copies ONNX models into pu
 
 `/api/v2/*` and `/media/*` are proxied to Django (`NEXT_PUBLIC_DJANGO_URL`, default `http://127.0.0.1:8000`), so the browser needs no CORS.
 
+## 1b. Sync server (PartyKit, `starrynight/party`)
+
+```bash
+cd starrynight/party
+npm install
+npm run dev                  # ws://127.0.0.1:1999. Dev auth is on: anyone can join, and the role comes from ?role=
+```
+
+With both running, open http://localhost:3000 and click **New board**. To test with a second person, open the same board link in another browser window (or on another device on your network). Add `?role=viewer` to the link to join as a read-only viewer.
+
+**Canvas shortcuts:**
+
+| Key | Action |
+|---|---|
+| V | Select |
+| H | Pan (or hold Space and drag) |
+| P | Pen |
+| R | Rectangle |
+| O | Ellipse |
+| A | Arrow |
+| N | Sticky note |
+| ⌘/Ctrl + scroll or pinch | Zoom |
+| Scroll | Pan |
+| ⌘0 | Zoom to fit |
+| ⌘Z / ⇧⌘Z | Undo / redo |
+| ⌫ | Delete |
+| ⌘A | Select all |
+| Double-click a sticky note | Edit its text |
+
+Add `?debug=1` to a board link to show the FPS counter and expose `window.__board`, which the E2E tests use.
+
 ## 2. Backend (Django, `starrynight/backend`)
 
 Same as GP1 (`python manage.py runserver`). New for GP2:
@@ -50,10 +81,10 @@ GitHub Actions is paused because of the account billing lock (`.github/workflows
 
 ```bash
 scripts/install-hooks.sh     # once per clone: every `git push` now runs the quick checks first
-scripts/check.sh             # full run: web lint/types/unit/build + Django + database RLS
+scripts/check.sh             # full run: web lint/types/unit/build + sync server + Django + database RLS
 scripts/check.sh --quick     # what the pre-push hook runs (no production build)
-scripts/check.sh --e2e       # full run plus Playwright browser + accessibility tests
-scripts/check.sh --only web  # one section: web | backend | database
+scripts/check.sh --e2e       # full run plus Playwright: two-browser sync, locks, viewer, a11y, 200-node FPS
+scripts/check.sh --only web  # one section: web | party | backend | database
 ```
 
 - A failing check **cancels the push** and prints the error. `git push --no-verify` skips the checks once.

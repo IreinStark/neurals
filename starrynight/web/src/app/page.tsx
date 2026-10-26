@@ -1,3 +1,4 @@
+import { NewBoardButton } from "@/components/NewBoardButton";
 import { DjangoStatus } from "@/components/ServiceStatus";
 import { ONNX_MODELS } from "@/contracts/styles";
 import { isSupabaseConfigured, publicEnv } from "@/lib/env";
@@ -12,9 +13,9 @@ export default function Home() {
         <h1 className="text-4xl font-semibold tracking-tight">StarryNight Board</h1>
         <p className="max-w-prose text-muted">
           A real-time multi-user canvas with in-browser neural style previews and temporally consistent
-          video stylization. The canvas arrives in milestone M2; this page checks that the foundations are
-          wired up.
+          video stylization.
         </p>
+        <NewBoardButton />
       </header>
 
       <section aria-labelledby="services" className="rounded-xl border border-border bg-surface p-6">
