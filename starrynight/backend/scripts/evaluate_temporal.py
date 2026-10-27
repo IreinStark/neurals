@@ -50,6 +50,8 @@ def parse_args():
     p.add_argument("--adain-style", action="append", default=[], help="label=painting.jpg (repeatable)")
     p.add_argument("--style-ref", action="append", default=[], help="TransformerNet style_id=painting.jpg, enables style distance")
     p.add_argument("--styles", default=",".join(STYLE_MODEL_CANDIDATES), help="TransformerNet style ids")
+    p.add_argument("--extra-model", action="append", default=[],
+                   help="label=checkpoint.pth (TransformerNet weights, e.g. a temporally fine-tuned model)")
     p.add_argument("--size", type=int, default=384)
     p.add_argument("--frames", type=int, default=40)
     p.add_argument("--blend", type=float, default=0.7)
@@ -110,6 +112,10 @@ def main():
             print(f"skip {sid}: {exc}")
             continue
         methods[f"TransformerNet · {sid}"] = (lambda m: lambda f: stlye_transfer(model=m, content=f).clip(0, 255).astype("uint8"))(model)
+    for spec in args.extra_model:
+        label, path = spec.split("=", 1)
+        model = load_fast_model(path)
+        methods[f"TransformerNet · {label}"] = (lambda m: lambda f: stlye_transfer(model=m, content=f).clip(0, 255).astype("uint8"))(model)
     for spec in args.adain_style:
         label, path = spec.split("=", 1)
         img = cv2.imread(path, cv2.IMREAD_COLOR)
