@@ -54,3 +54,7 @@ Temporal warping error on a 40-frame panning clip (lower = less flicker):
 
 1. **The ReCoNet checkpoint (`style_transfer/reco/reconet.pth`) is collapsed.** For any input it outputs a near-uniform grey image (pixel std about 1.3, every value about 127). A grey video can't flicker, so its TWE is about 0. **The GP1 headline result (TWE 0.0149, "3.4× better") came from this degenerate output and shouldn't be reported as temporal consistency.** The evaluation script now detects and flags this. Fixing it needs a properly trained ReCoNet checkpoint (task T5.1).
 2. **The TWE metric warped frames in the wrong direction.** It used forward flow with `cv2.remap`, which needs backward flow. On a clean pan, that scored *worse* than not warping at all (25.1 vs 21.7). It's fixed in `scripts/evaluate_style_transfer.py`: the source clip against itself now scores 0.40. Regression tests are in `style_transfer/tests/test_temporal_metric.py`. Any GP1 TWE numbers should be re-measured.
+
+## Temporal consistency
+
+See [TEMPORAL.md](TEMPORAL.md): the GP1 ReCoNet/TWE corrections, flow-guided stabilization (on by default for video jobs) and the re-measured results.

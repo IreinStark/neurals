@@ -33,18 +33,24 @@ def _webcam_task_mode() -> str:
     return "thread" if settings.DEBUG else "celery"
 
 
-def _dispatch_webcam_job(job_id: str, temp_path: str, selected_style: str, user_id=None, source="webcam") -> str:
+def _dispatch_webcam_job(job_id: str, temp_path: str, selected_style: str, user_id=None, source="webcam", temporal=True) -> str:
     if _webcam_task_mode() == "celery":
-        process_webcam_video.delay(job_id, temp_path, selected_style, user_id=user_id, source=source)
+        process_webcam_video.delay(job_id, temp_path, selected_style, user_id=user_id, source=source, temporal=temporal)
         return "celery"
 
     Thread(
         target=process_webcam_video.run,
         args=(job_id, temp_path, selected_style),
-        kwargs={"user_id": user_id, "source": source},
+        kwargs={"user_id": user_id, "source": source, "temporal": temporal},
         daemon=True,
     ).start()
     return "thread"
+
+
+def _flag(value, default=True) -> bool:
+    if value is None or value == "":
+        return default
+    return str(value).strip().lower() not in ("0", "false", "no", "off")
 
 
 @api_view(["GET"])
@@ -183,13 +189,16 @@ def webcam_video_view(request):
         {"status": "queued", "progress": 0, "video_url": None, "error": None, "style": selected_style},
     )
 
+    temporal = _flag(request.data.get("temporal"))
     try:
-        execution_mode = _dispatch_webcam_job(job_id, temp_path, selected_style, user_id=user_id, source=source)
+        execution_mode = _dispatch_webcam_job(
+            job_id, temp_path, selected_style, user_id=user_id, source=source, temporal=temporal
+        )
     except Exception:
         Thread(
             target=process_webcam_video.run,
             args=(job_id, temp_path, selected_style),
-            kwargs={"user_id": user_id, "source": source},
+            kwargs={"user_id": user_id, "source": source, "temporal": temporal},
             daemon=True,
         ).start()
         execution_mode = "thread"

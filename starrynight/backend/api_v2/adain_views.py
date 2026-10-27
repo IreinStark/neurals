@@ -126,7 +126,8 @@ def adain_video(request):
     set_job_state(job_id, {"status": "queued", "progress": 0, "video_url": None, "error": None, "style": "custom"})
 
     args = (job_id, video_path, style_path)
-    kwargs = {"alpha": alpha, "source": request.POST.get("source", "upload")}
+    temporal = str(request.POST.get("temporal", "1")).strip().lower() not in ("0", "false", "no", "off")
+    kwargs = {"alpha": alpha, "source": request.POST.get("source", "upload"), "temporal": temporal}
     mode = _task_mode()
     if mode == "celery":
         try:

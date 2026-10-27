@@ -9,6 +9,7 @@ from .apps import StyleTransferConfig
 from .fast_style.api import stlye_transfer
 from .job_state import update_job_state
 from .reco.style_catalog import resolve_style_model
+from .temporal import TemporalStabilizer
 
 
 def _update_job(job_id: str, **payload) -> None:
@@ -56,6 +57,7 @@ def _process_webcam_video_fast(
     output_abs: str,
     model_path: str,
     progress_callback,
+    temporal: bool = True,
 ) -> str:
     """Stylize with the fast TransformerNet path. Returns the path actually written."""
     from math import ceil
@@ -86,6 +88,7 @@ def _process_webcam_video_fast(
         raise
 
     model = StyleTransferConfig.get_loaded_model(model_path)
+    stabilizer = TemporalStabilizer() if temporal else None
 
     frames_seen = 0
     try:
@@ -100,6 +103,8 @@ def _process_webcam_video_fast(
 
             resized = cv2.resize(frame_bgr, frame_size, interpolation=cv2.INTER_AREA)
             styled = stlye_transfer(model=model, content=resized).clip(0, 255).astype("uint8")
+            if stabilizer is not None:
+                styled = stabilizer.step(resized, styled)
             writer.write(styled)
             progress_callback(frames_seen, total_frames)
     finally:
@@ -129,6 +134,7 @@ def process_webcam_video(
     style: Optional[str] = None,
     user_id: Optional[int] = None,
     source: str = "webcam",
+    temporal: bool = True,
 ) -> None:
     try:
         model_path, selected_style = resolve_style_model(settings.BASE_DIR, style)
@@ -151,6 +157,7 @@ def process_webcam_video(
             output_abs,
             model_path,
             progress_callback=on_progress,
+            temporal=temporal,
         )
         output_rel = os.path.join(os.path.dirname(output_rel), os.path.basename(written_abs))
         video_url = f"{settings.MEDIA_URL}{output_rel}"
@@ -180,6 +187,7 @@ def _process_adain_video(
     progress_callback,
     max_side: int = 512,
     target_fps: float = 8.0,
+    temporal: bool = True,
 ) -> str:
     """Arbitrary-style video: AdaIN per frame with the style features encoded once. Returns the path written."""
     from math import ceil
@@ -207,6 +215,7 @@ def _process_adain_video(
 
     model = get_model()
     style_feat = model.encode_style(style_bgr)
+    stabilizer = TemporalStabilizer() if temporal else None
     frames_seen = 0
     try:
         while True:
@@ -218,7 +227,10 @@ def _process_adain_video(
                 progress_callback(frames_seen, total_frames)
                 continue
             resized = cv2.resize(frame_bgr, frame_size, interpolation=cv2.INTER_AREA)
-            writer.write(model.stylize(resized, style_feat, alpha=alpha, max_side=max_side))
+            styled = model.stylize(resized, style_feat, alpha=alpha, max_side=max_side)
+            if stabilizer is not None:
+                styled = stabilizer.step(resized, styled)
+            writer.write(styled)
             progress_callback(frames_seen, total_frames)
     finally:
         capture.release()
@@ -235,6 +247,7 @@ def process_adain_video(
     alpha: float = 1.0,
     user_id: Optional[int] = None,
     source: str = "upload",
+    temporal: bool = True,
 ) -> None:
     import cv2
 
@@ -253,7 +266,7 @@ def process_adain_video(
             _update_job(job_id, status="processing", progress=progress)
 
         written_abs = _process_adain_video(
-            default_storage.path(temp_video_path), output_abs, style_bgr, alpha, progress_callback=on_progress
+            default_storage.path(temp_video_path), output_abs, style_bgr, alpha, progress_callback=on_progress, temporal=temporal
         )
         output_rel = os.path.join(os.path.dirname(output_rel), os.path.basename(written_abs))
         video_url = f"{settings.MEDIA_URL}{output_rel}"

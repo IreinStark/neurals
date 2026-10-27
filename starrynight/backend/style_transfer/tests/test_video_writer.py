@@ -2,6 +2,7 @@ import os
 import tempfile
 from unittest.mock import patch
 
+import cv2
 import numpy as np
 from django.test import SimpleTestCase
 
@@ -66,3 +67,44 @@ class FastPipelineReturnsWrittenPathTests(SimpleTestCase):
             self.assertIsNotNone(out)
             self.assertTrue(os.path.exists(out))
             self.assertGreater(os.path.getsize(out), 0)
+
+
+class FastPipelineTemporalTests(SimpleTestCase):
+    """The video job's stabilization must actually reduce flicker in the written file."""
+
+    def _frame_change(self, path):
+        cap = cv2.VideoCapture(path)
+        frames = []
+        while True:
+            ok, f = cap.read()
+            if not ok:
+                break
+            frames.append(f.astype(int))
+        cap.release()
+        return float(np.mean([np.abs(a - b).mean() for a, b in zip(frames[2:], frames[3:])]))
+
+    def test_temporal_flag_reduces_frame_to_frame_flicker(self):
+        from style_transfer import tasks
+
+        rng = np.random.default_rng(0)
+
+        def flickery_style(model, content):  # stand-in for per-frame stylization flicker (blotchy shifts)
+            noise = cv2.GaussianBlur(rng.normal(0, 1, content.shape).astype(np.float32), (0, 0), 8)
+            return np.clip(content.astype(float) + noise * (40 / (noise.std() + 1e-6)), 0, 255)
+
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "in.avi")
+            still = cv2.GaussianBlur(rng.integers(0, 255, (360, 640, 3), dtype=np.uint8), (0, 0), 4)
+            w = cv2.VideoWriter(src, cv2.VideoWriter_fourcc(*"MJPG"), 8, (640, 360))
+            for _ in range(10):
+                w.write(still)
+            w.release()
+            outs = {}
+            with patch.object(tasks.StyleTransferConfig, "get_loaded_model", return_value=object()), patch.object(
+                tasks, "stlye_transfer", side_effect=flickery_style
+            ):
+                for flag in (False, True):
+                    outs[flag] = tasks._process_webcam_video_fast(
+                        src, os.path.join(d, f"out_{flag}.mp4"), "m.pth", lambda *a: None, temporal=flag
+                    )
+            self.assertLess(self._frame_change(outs[True]), 0.6 * self._frame_change(outs[False]))
