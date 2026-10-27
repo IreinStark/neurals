@@ -724,7 +724,210 @@ async function refreshStats() {
   }
 }
 
-const NS = { styleFor, stylizeImage, stylizeCustom, preload, live, api, auth, gallery, ApiFailure, StyleError };
+// ------------------------------------------------------------- webrtc ---
+/**
+ * Live server-side stylization over WebRTC (GP2 feature 2). The camera track goes to Django
+ * (aiortc), which sends stylized frames back on a second track. Signalling runs over the Channels
+ * WebSocket /ws/live/.
+ *
+ * Latency figures come from WebRTC's own measurements (RTCPeerConnection.getStats) plus the
+ * server's per-frame timing. `latencyMs` = network round trip + server pipeline. `glassToGlassMs`
+ * = encode + round trip + server pipeline + jitter buffer + decode.
+ */
+export interface RtcStats {
+  fps: number;
+  side: number;
+  inferMs: number;
+  pipelineMs: number;
+  queueMs: number;
+  dropped: number;
+  received: number;
+  rttMs: number;
+  encodeMs: number;
+  jitterBufferMs: number;
+  decodeMs: number;
+  recvFps: number;
+  latencyMs: number;
+  glassToGlassMs: number;
+  style: string;
+}
+type RtcState = "connecting" | "live" | "failed" | "closed";
+
+function liveSocketUrl(): string {
+  const env = (window as unknown as { NS_LIVE_URL?: string }).NS_LIVE_URL;
+  const base = env ?? `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/live/`;
+  return memorySession ? `${base}?token=${encodeURIComponent(memorySession.access)}` : base;
+}
+
+function waitIce(pc: RTCPeerConnection, ms = 3000): Promise<void> {
+  if (pc.iceGatheringState === "complete") return Promise.resolve();
+  return new Promise((resolve) => {
+    const t = setTimeout(resolve, ms);
+    pc.addEventListener("icegatheringstatechange", () => {
+      if (pc.iceGatheringState === "complete") {
+        clearTimeout(t);
+        resolve();
+      }
+    });
+  });
+}
+
+async function connectLive(source: MediaStream, opts: { key: string; alpha: number; temporal?: boolean; width?: number }) {
+  if (typeof RTCPeerConnection === "undefined") throw new ApiFailure("WebRTC isn't supported in this browser.", 0);
+  const track = source.getVideoTracks()[0];
+  if (!track) throw new ApiFailure("Start the camera first.", 0);
+  const toServerStyle = (key: string) => (key === "raw" ? "raw" : styleFor(key) ?? "starry-night");
+
+  const ws = new WebSocket(liveSocketUrl());
+  const remoteStream = new MediaStream();
+  const stats: RtcStats = {
+    fps: 0, side: 0, inferMs: 0, pipelineMs: 0, queueMs: 0, dropped: 0, received: 0, rttMs: 0, encodeMs: 0,
+    jitterBufferMs: 0, decodeMs: 0, recvFps: 0, latencyMs: 0, glassToGlassMs: 0, style: toServerStyle(opts.key),
+  };
+  let statsCb: ((s: RtcStats) => void) | null = null;
+  let stateCb: ((s: RtcState, message?: string) => void) | null = null;
+  let state: RtcState = "connecting";
+  let pc: RTCPeerConnection | null = null;
+  let poll = 0;
+  let gotFrame = false;
+  const setState = (s: RtcState, message?: string) => {
+    if (state === "closed" || state === s) return;
+    state = s;
+    stateCb?.(s, message);
+  };
+  const send = (m: object) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(m));
+
+  const answered = new Promise<void>((resolve, reject) => {
+    const fail = (msg: string) => {
+      reject(new ApiFailure(msg, 0));
+      setState("failed", msg);
+    };
+    const timer = setTimeout(() => fail("The live server didn't answer in time."), 20000);
+    ws.onerror = () => fail("Can't reach the live server — is Django running?");
+    ws.onclose = () => {
+      clearTimeout(timer);
+      if (state !== "closed") fail("The live connection closed.");
+    };
+    ws.onmessage = async (ev) => {
+      const m = JSON.parse(String(ev.data)) as { type: string; [k: string]: unknown };
+      if (m.type === "hello") {
+        pc = new RTCPeerConnection({ iceServers: (m.iceServers as RTCIceServer[]) ?? [] });
+        const sender = pc.addTrack(track, source);
+        const w = track.getSettings().width ?? 0;
+        const target = opts.width ?? 640;
+        if (w > target) {
+          const p = sender.getParameters();
+          p.encodings = [{ ...(p.encodings?.[0] ?? {}), scaleResolutionDownBy: w / target, maxFramerate: 30 }];
+          await sender.setParameters(p).catch(() => undefined);
+        }
+        pc.ontrack = (e) => {
+          remoteStream.addTrack(e.track);
+          e.track.addEventListener("unmute", () => {
+            gotFrame = true;
+            setState("live");
+          });
+        };
+        pc.onconnectionstatechange = () => {
+          if (pc && (pc.connectionState === "failed" || pc.connectionState === "disconnected")) fail("The live connection dropped.");
+        };
+        await pc.setLocalDescription(await pc.createOffer());
+        await waitIce(pc);
+        send({ type: "offer", sdp: pc.localDescription!.sdp, style: toServerStyle(opts.key), alpha: opts.alpha, temporal: opts.temporal ?? true });
+      } else if (m.type === "answer" && pc) {
+        clearTimeout(timer);
+        await pc.setRemoteDescription({ type: "answer", sdp: m.sdp as string });
+        resolve();
+      } else if (m.type === "stats") {
+        Object.assign(stats, {
+          fps: m.fps, side: m.side, inferMs: m.inferMs, pipelineMs: m.pipelineMs, queueMs: m.queueMs,
+          dropped: m.dropped, received: m.received, style: m.style,
+        });
+      } else if (m.type === "error") {
+        if (m.code === "busy" || !pc) fail(String(m.message));
+        else window.dispatchEvent(new CustomEvent("ns:live-error", { detail: String(m.message) }));
+      }
+    };
+  });
+
+  const prev = { enc: 0, encN: 0, jb: 0, jbN: 0, dec: 0, decN: 0 };
+  const sample = async () => {
+    if (!pc) return;
+    const report = await pc.getStats();
+    report.forEach((r: Record<string, unknown>) => {
+      const n = (k: string) => Number(r[k] ?? 0);
+      if (r.type === "candidate-pair" && (r.nominated || r.selected) && r.currentRoundTripTime !== undefined) {
+        stats.rttMs = Math.round(n("currentRoundTripTime") * 1000);
+      } else if (r.type === "outbound-rtp" && r.kind === "video" && n("framesEncoded") > prev.encN) {
+        stats.encodeMs = ((n("totalEncodeTime") - prev.enc) / (n("framesEncoded") - prev.encN)) * 1000;
+        prev.enc = n("totalEncodeTime");
+        prev.encN = n("framesEncoded");
+      } else if (r.type === "inbound-rtp" && r.kind === "video") {
+        stats.recvFps = Math.round(n("framesPerSecond"));
+        if (n("jitterBufferEmittedCount") > prev.jbN) {
+          stats.jitterBufferMs = ((n("jitterBufferDelay") - prev.jb) / (n("jitterBufferEmittedCount") - prev.jbN)) * 1000;
+          prev.jb = n("jitterBufferDelay");
+          prev.jbN = n("jitterBufferEmittedCount");
+        }
+        if (n("framesDecoded") > prev.decN) {
+          stats.decodeMs = ((n("totalDecodeTime") - prev.dec) / (n("framesDecoded") - prev.decN)) * 1000;
+          prev.dec = n("totalDecodeTime");
+          prev.decN = n("framesDecoded");
+        }
+      }
+    });
+    stats.latencyMs = Math.round(stats.rttMs + stats.pipelineMs);
+    stats.glassToGlassMs = Math.round(stats.encodeMs + stats.rttMs + stats.pipelineMs + stats.jitterBufferMs + stats.decodeMs);
+    if (gotFrame) statsCb?.({ ...stats });
+  };
+
+  await answered;
+  poll = window.setInterval(() => void sample().catch(() => undefined), 1000);
+
+  return {
+    remoteStream,
+    get ready() {
+      return gotFrame && state === "live";
+    },
+    get state() {
+      return state;
+    },
+    get stats() {
+      return { ...stats };
+    },
+    setStyle(key: string) {
+      stats.style = toServerStyle(key);
+      send({ type: "style", style: stats.style });
+    },
+    setAlpha(alpha: number) {
+      send({ type: "config", alpha: Math.max(0, Math.min(1, alpha)) });
+    },
+    setTemporal(on: boolean) {
+      send({ type: "config", temporal: on });
+    },
+    /** Custom painting → server-side AdaIN for the live stream. */
+    setStyleImage(dataUrl: string) {
+      send({ type: "style_image", image: dataUrl });
+    },
+    onStats(fn: ((s: RtcStats) => void) | null) {
+      statsCb = fn;
+    },
+    onState(fn: ((s: RtcState, message?: string) => void) | null) {
+      stateCb = fn;
+    },
+    close() {
+      clearInterval(poll);
+      setState("closed");
+      send({ type: "bye" });
+      ws.close();
+      pc?.close();
+      remoteStream.getTracks().forEach((t) => t.stop());
+    },
+  };
+}
+export type LiveSession = Awaited<ReturnType<typeof connectLive>>;
+const rtc = { connect: connectLive };
+
+const NS = { styleFor, stylizeImage, stylizeCustom, preload, live, rtc, api, auth, gallery, ApiFailure, StyleError };
 declare global {
   interface Window {
     NS: typeof NS;

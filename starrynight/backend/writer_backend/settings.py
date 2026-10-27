@@ -39,6 +39,7 @@ CORS_ALLOWED_ORIGINS = [
 # Application definition
 
 INSTALLED_APPS = [
+    "daphne",  # ASGI runserver (HTTP + WebSocket)
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -51,7 +52,19 @@ INSTALLED_APPS = [
     "accounts",
     "style_transfer",
     "api_v2",
+    "channels",
+    "streaming",
 ]
+
+# Live WebRTC streaming (GP2 feature 2): Channels signalling + aiortc media.
+ASGI_APPLICATION = "writer_backend.asgi.application"
+CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
+LIVE_MAX_SESSIONS = int(os.environ.get("LIVE_MAX_SESSIONS", "4"))
+LIVE_TARGET_FPS = float(os.environ.get("LIVE_TARGET_FPS", "15"))
+LIVE_MAX_SIDE = int(os.environ.get("LIVE_MAX_SIDE", "384"))
+LIVE_MIN_SIDE = int(os.environ.get("LIVE_MIN_SIDE", "160"))
+LIVE_REQUIRE_AUTH = os.environ.get("LIVE_REQUIRE_AUTH", "false").lower() == "true"
+LIVE_ICE_SERVERS = [u for u in os.environ.get("LIVE_ICE_SERVERS", "stun:stun.l.google.com:19302").split(",") if u]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

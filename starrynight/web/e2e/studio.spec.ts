@@ -81,6 +81,18 @@ test.describe("Neural Style Studio", () => {
     await expect(page.locator("#latency")).toHaveText(/^\d+ms$/, { timeout: 10_000 });
   });
 
+  test("live stream mode falls back to in-browser styling when the server is unreachable", async ({ page }) => {
+    await page.routeWebSocket("**/ws/live/**", (ws) => ws.close({ code: 1011, reason: "down" }));
+    await page.goto("/#/webcam");
+    await expect(page.locator("#cs")).toHaveText(/Camera active|demo feed/, { timeout: 20_000 });
+    await page.locator(".ws[data-k=starry]").click();
+    await page.locator("#modeLive").click();
+    await expect(page.locator("#tm")).toContainText("styling in your browser instead", { timeout: 15_000 });
+    await expect(page.locator("#liveBanner")).toBeVisible();
+    await expect(page.locator("#fpsb")).toHaveText(/^\d+ FPS · (WASM|WEBGPU|WEBGL)$/, { timeout: 90_000 });
+    await expect(page.locator("#latency")).toHaveText(/^\d+ms$/, { timeout: 10_000 });
+  });
+
   test("video upload submits a backend job, tracks progress and plays the result", async ({ page }) => {
     await page.goto("/#/video-upload");
     await page.setInputFiles("#vuFile", join(FIX, "clip.mp4"));

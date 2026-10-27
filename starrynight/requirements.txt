@@ -19,3 +19,8 @@ redis==5.0.1
 
 # Utilities
 requests==2.31.0
+
+# GP2 live WebRTC streaming (Django Channels signalling + aiortc media)
+channels>=4.1,<5
+daphne>=4.1
+aiortc>=1.9

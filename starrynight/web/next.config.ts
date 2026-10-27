@@ -18,6 +18,8 @@ const nextConfig: NextConfig = {
       { source: "/api/v2/:path*/", destination: `${djangoUrl}/api/v2/:path*/` },
       { source: "/api/v2/:path*", destination: `${djangoUrl}/api/v2/:path*` },
       { source: "/media/:path*", destination: `${djangoUrl}/media/:path*` },
+      // live WebRTC signalling (Django Channels WebSocket)
+      { source: "/ws/live/", destination: `${djangoUrl}/ws/live/` },
       // public share links (Open Graph preview page → redirects into the studio)
       { source: "/s/:token/", destination: `${djangoUrl}/s/:token/` },
       { source: "/s/:token", destination: `${djangoUrl}/s/:token/` },
