@@ -66,12 +66,12 @@ export function chwFloat32ToRgba(
 
 /**
  * Fit (width, height) inside maxSide keeping aspect ratio. Dimensions are rounded
- * down to a multiple of 4 (TransformerNet downsamples x4, so odd sizes would
+ * down to `multiple` (TransformerNet downsamples ×4, AdaIN ×8, so other sizes would
  * come back slightly different in size). Never upscales.
  */
-export function fitWithin(width: number, height: number, maxSide: number): Size {
+export function fitWithin(width: number, height: number, maxSide: number, multiple = 4): Size {
   if (width <= 0 || height <= 0) throw new RangeError("width and height must be positive");
   const scale = Math.min(1, maxSide / Math.max(width, height));
-  const snap = (v: number) => Math.max(4, Math.floor((v * scale) / 4) * 4);
+  const snap = (v: number) => Math.max(multiple, Math.floor((v * scale) / multiple) * multiple);
   return { width: snap(width), height: snap(height) };
 }

@@ -1,0 +1,208 @@
+{
+  "device": "cpu",
+  "size": 384,
+  "summary": {
+    "fixed": {
+      "fps": 6.0132,
+      "psnr": 9.8475,
+      "mae": 69.2399,
+      "lpips": null,
+      "style_distance": 162.398
+    },
+    "adain": {
+      "fps": 2.234,
+      "psnr": 12.447,
+      "mae": 50.718,
+      "lpips": null,
+      "style_distance": 76.6124
+    }
+  },
+  "images": [
+    {
+      "content": "butterfly.jpg",
+      "style": "starry-night",
+      "method": "fixed",
+      "fps": 5.915,
+      "psnr": 9.825,
+      "mae": 66.927,
+      "lpips": null,
+      "style_distance": 191.375
+    },
+    {
+      "content": "butterfly.jpg",
+      "style": "starry-night",
+      "method": "adain",
+      "fps": 2.369,
+      "psnr": 11.86,
+      "mae": 51.668,
+      "lpips": null,
+      "style_distance": 91.1042
+    },
+    {
+      "content": "butterfly.jpg",
+      "style": "wave",
+      "method": "fixed",
+      "fps": 6.01,
+      "psnr": 9.034,
+      "mae": 77.992,
+      "lpips": null,
+      "style_distance": 153.425
+    },
+    {
+      "content": "butterfly.jpg",
+      "style": "wave",
+      "method": "adain",
+      "fps": 2.141,
+      "psnr": 10.718,
+      "mae": 62.432,
+      "lpips": null,
+      "style_distance": 69.5592
+    },
+    {
+      "content": "golden.jpg",
+      "style": "starry-night",
+      "method": "fixed",
+      "fps": 6.112,
+      "psnr": 8.79,
+      "mae": 73.258,
+      "lpips": null,
+      "style_distance": 184.1784
+    },
+    {
+      "content": "golden.jpg",
+      "style": "starry-night",
+      "method": "adain",
+      "fps": 2.18,
+      "psnr": 11.899,
+      "mae": 49.904,
+      "lpips": null,
+      "style_distance": 51.8932
+    },
+    {
+      "content": "golden.jpg",
+      "style": "wave",
+      "method": "fixed",
+      "fps": 5.811,
+      "psnr": 12.891,
+      "mae": 45.061,
+      "lpips": null,
+      "style_distance": 132.1561
+    },
+    {
+      "content": "golden.jpg",
+      "style": "wave",
+      "method": "adain",
+      "fps": 1.787,
+      "psnr": 14.0,
+      "mae": 39.535,
+      "lpips": null,
+      "style_distance": 79.2905
+    },
+    {
+      "content": "hoover.jpg",
+      "style": "starry-night",
+      "method": "fixed",
+      "fps": 7.336,
+      "psnr": 10.099,
+      "mae": 60.886,
+      "lpips": null,
+      "style_distance": 184.0129
+    },
+    {
+      "content": "hoover.jpg",
+      "style": "starry-night",
+      "method": "adain",
+      "fps": 2.6,
+      "psnr": 13.005,
+      "mae": 45.552,
+      "lpips": null,
+      "style_distance": 63.9905
+    },
+    {
+      "content": "hoover.jpg",
+      "style": "wave",
+      "method": "fixed",
+      "fps": 6.481,
+      "psnr": 6.353,
+      "mae": 111.063,
+      "lpips": null,
+      "style_distance": 133.2868
+    },
+    {
+      "content": "hoover.jpg",
+      "style": "wave",
+      "method": "adain",
+      "fps": 2.937,
+      "psnr": 9.112,
+      "mae": 80.687,
+      "lpips": null,
+      "style_distance": 98.6418
+    },
+    {
+      "content": "town.jpg",
+      "style": "starry-night",
+      "method": "fixed",
+      "fps": 5.403,
+      "psnr": 11.669,
+      "mae": 53.891,
+      "lpips": null,
+      "style_distance": 180.8669
+    },
+    {
+      "content": "town.jpg",
+      "style": "starry-night",
+      "method": "adain",
+      "fps": 1.958,
+      "psnr": 14.896,
+      "mae": 36.362,
+      "lpips": null,
+      "style_distance": 64.181
+    },
+    {
+      "content": "town.jpg",
+      "style": "wave",
+      "method": "fixed",
+      "fps": 5.038,
+      "psnr": 10.119,
+      "mae": 64.841,
+      "lpips": null,
+      "style_distance": 139.8827
+    },
+    {
+      "content": "town.jpg",
+      "style": "wave",
+      "method": "adain",
+      "fps": 1.9,
+      "psnr": 14.086,
+      "mae": 39.604,
+      "lpips": null,
+      "style_distance": 94.2387
+    }
+  ],
+  "video": [
+    {
+      "method": "TransformerNet (starry-night), per-frame",
+      "twe_mae": 29.624597311019897,
+      "pairs": 40,
+      "note": ""
+    },
+    {
+      "method": "AdaIN (any style), per-frame",
+      "twe_mae": 22.65150303840637,
+      "pairs": 40,
+      "note": ""
+    },
+    {
+      "method": "ReCoNet (temporal training)",
+      "twe_mae": 0.057313659321516754,
+      "pairs": 40,
+      "note": "DEGENERATE: output is near-constant (pixel std 1.28); TWE not meaningful"
+    },
+    {
+      "method": "Source clip (no stylization, reference)",
+      "twe_mae": 0.40381943732500075,
+      "pairs": 40,
+      "note": ""
+    }
+  ]
+}

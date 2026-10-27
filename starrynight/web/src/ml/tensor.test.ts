@@ -47,6 +47,10 @@ describe("fitWithin", () => {
     expect(fitWithin(300, 201, 512)).toEqual({ width: 300, height: 200 });
   });
 
+  it("snaps to a custom multiple (AdaIN needs multiples of 8)", () => {
+    expect(fitWithin(979, 734, 512, 8)).toEqual({ width: 512, height: 376 });
+  });
+
   it("scales the long side down to maxSide keeping aspect ratio", () => {
     expect(fitWithin(1920, 1080, 512)).toEqual({ width: 512, height: 288 });
   });

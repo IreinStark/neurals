@@ -11,6 +11,7 @@ export const STYLE_IDS = [
   "lazy",
   "bayanihan",
   "pointilism",
+  "adain",
 ] as const;
 
 export type StyleId = (typeof STYLE_IDS)[number];
@@ -25,6 +26,13 @@ export interface OnnxModelSpec {
   fixedSize: readonly [number, number] | null;
   /** True when the Django backend also has a .pth checkpoint for this style. */
   serverAvailable: boolean;
+  /** "fixed": one trained style per model. "arbitrary": AdaIN, takes any style image. */
+  kind: "fixed" | "arbitrary";
+  /** Input/output sizes must be multiples of this (TransformerNet 4, AdaIN 8). */
+  sizeMultiple: number;
+  /** Arbitrary models only: names of the style-image and alpha inputs. */
+  styleInputName?: string;
+  alphaInputName?: string;
 }
 
 const transformerNet = (id: StyleId, label: string): OnnxModelSpec => ({
@@ -35,6 +43,8 @@ const transformerNet = (id: StyleId, label: string): OnnxModelSpec => ({
   outputName: "output",
   fixedSize: null,
   serverAvailable: true,
+  kind: "fixed",
+  sizeMultiple: 4,
 });
 
 export const ONNX_MODELS: Readonly<Record<StyleId, OnnxModelSpec>> = {
@@ -53,6 +63,21 @@ export const ONNX_MODELS: Readonly<Record<StyleId, OnnxModelSpec>> = {
     outputName: "output1",
     fixedSize: [224, 224],
     serverAvailable: false,
+    kind: "fixed",
+    sizeMultiple: 4,
+  },
+  adain: {
+    id: "adain",
+    label: "Custom style (AdaIN)",
+    url: "/models/adain.onnx",
+    inputName: "content",
+    outputName: "output",
+    fixedSize: null,
+    serverAvailable: true,
+    kind: "arbitrary",
+    sizeMultiple: 8,
+    styleInputName: "style",
+    alphaInputName: "alpha",
   },
 };
 

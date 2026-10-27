@@ -28,6 +28,12 @@ async function mockDjango(page: Page) {
     expect(r.request().postData()).toContain('name="style"');
     await r.fulfill({ json: { job_id: "job-1", status: "queued", execution_mode: "thread" } });
   });
+  await page.route("**/api/v2/adain/video/", async (r) => {
+    const body = r.request().postData() ?? "";
+    expect(body).toContain('name="style"');
+    expect(body).toContain('name="alpha"');
+    await r.fulfill({ status: 202, json: { job_id: "job-1", status: "queued", execution_mode: "thread", style: "custom" } });
+  });
   await page.route("**/style_transfer/video-status/job-1/", (r) => {
     polls++;
     return r.fulfill({
@@ -84,6 +90,24 @@ test.describe("Neural Style Studio", () => {
     await expect
       .poll(() => page.evaluate(() => document.querySelector<HTMLVideoElement>("#vuResultArea video")?.readyState ?? 0))
       .toBeGreaterThanOrEqual(2);
+  });
+
+  test("custom style (AdaIN) applies any uploaded painting in the browser", async ({ page }) => {
+    await page.goto("/#/image");
+    await page.locator("#tabAdaIN").click();
+    await page.locator(".qsp").nth(1).click(); // quick reference: Great Wave
+    await expect(page.locator("#tg")).toHaveText(/^Custom style · \d+ ms · (WASM|WEBGPU|WEBGL)$/, { timeout: 120_000 });
+    expect(await page.getAttribute("#sImg", "src")).toMatch(/^data:image\/jpeg;base64,/);
+  });
+
+  test("video upload can use a custom style image (AdaIN job)", async ({ page }) => {
+    await page.goto("/#/video-upload");
+    await page.setInputFiles("#vuFile", join(FIX, "clip.mp4"));
+    await page.locator("#vuTabCustom").click();
+    await page.locator(".vqsp").first().click();
+    await page.locator("#vuGo").click();
+    await expect(page.locator("#vuStatus")).toHaveText("Complete", { timeout: 30_000 });
+    await expect(page.locator("#vuResultStyle")).toHaveText("Custom (AdaIN)");
   });
 
   test("forgot + reset password use the Django reset flow", async ({ page }) => {

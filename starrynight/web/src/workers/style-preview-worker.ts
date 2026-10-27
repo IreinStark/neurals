@@ -82,6 +82,9 @@ function getSession(styleId: StyleId, modelUrl?: string): Promise<Loaded> {
   return p;
 }
 
+/** Style images for arbitrary-style models, as CHW float32 tensors (LRU, max 4). */
+const styleImages = new Map<string, { data: Float32Array; width: number; height: number }>();
+
 type InferMsg = Extract<ToWorker, { type: "infer" }>;
 let running = false;
 const queue: InferMsg[] = [];
@@ -103,6 +106,12 @@ async function runInfer(msg: InferMsg) {
   const feeds: Record<string, ort.Tensor> = {
     [spec.inputName]: new ort.Tensor("float32", input, [1, 3, height, width]),
   };
+  if (spec.kind === "arbitrary") {
+    const style = msg.styleKey ? styleImages.get(msg.styleKey) : undefined;
+    if (!style) throw Object.assign(new Error("No style image set for this request"), { code: "internal" });
+    feeds[spec.styleInputName!] = new ort.Tensor("float32", style.data, [1, 3, style.height, style.width]);
+    feeds[spec.alphaInputName!] = new ort.Tensor("float32", new Float32Array([Math.max(0, Math.min(1, msg.alpha ?? 1))]), [1]);
+  }
   const results = await session.run(feeds);
   const out = results[spec.outputName] ?? Object.values(results)[0]!;
   const t2 = performance.now();
@@ -171,11 +180,22 @@ self.onmessage = (event: MessageEvent<ToWorker>) => {
         );
       return;
     }
+    case "style": {
+      styleImages.delete(msg.key);
+      styleImages.set(msg.key, {
+        data: rgbaToChwFloat32(new Uint8ClampedArray(msg.pixels), msg.width, msg.height),
+        width: msg.width,
+        height: msg.height,
+      });
+      while (styleImages.size > 4) styleImages.delete(styleImages.keys().next().value as string);
+      post({ type: "styleReady", reqId: msg.reqId, key: msg.key });
+      return;
+    }
     case "infer": {
       // Latest wins: drop queued (not running) requests for the same style.
       for (let i = queue.length - 1; i >= 0; i--) {
         const q = queue[i]!;
-        if (q.styleId === msg.styleId) {
+        if (q.styleId === msg.styleId && q.styleKey === msg.styleKey) {
           queue.splice(i, 1);
           post({ type: "error", reqId: q.reqId, code: "cancelled", message: "superseded" });
         }

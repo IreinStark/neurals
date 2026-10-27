@@ -49,7 +49,7 @@ export class StyleClient {
   constructor(private readonly worker: WorkerLike) {
     worker.addEventListener("message", (e) => {
       const msg = e.data;
-      if (msg.type !== "ready" && msg.type !== "result" && msg.type !== "error") return;
+      if (msg.type !== "ready" && msg.type !== "styleReady" && msg.type !== "result" && msg.type !== "error") return;
       const p = this.pending.get(msg.reqId);
       if (!p) return;
       this.pending.delete(msg.reqId);
@@ -86,12 +86,46 @@ export class StyleClient {
     return p;
   }
 
+  private readonly styleKeys = new Set<string>();
+
+  /** True once a style image with this key has been sent to the worker. */
+  hasStyle(key: string): boolean {
+    return this.styleKeys.has(key);
+  }
+
+  /**
+   * Send a style image (for AdaIN) once; later requests refer to it by `key`.
+   * It is drawn at most `maxSide` px (multiples of 8): style statistics don't need more.
+   */
+  async setStyleImage(
+    key: string,
+    source: CanvasImageSource,
+    sourceWidth: number,
+    sourceHeight: number,
+    maxSide = 256,
+  ): Promise<void> {
+    const { width, height } = fitWithin(sourceWidth, sourceHeight, maxSide, 8);
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new StyleError("internal", "2D canvas unavailable");
+    ctx.drawImage(source, 0, 0, width, height);
+    const buffer = ctx.getImageData(0, 0, width, height).data.buffer as ArrayBuffer;
+    await this.request({ type: "style", reqId: this.nextId(), key, width, height, pixels: buffer }, [buffer]);
+    this.styleKeys.add(key);
+  }
+
   /** Stylize raw RGBA pixels (already at inference size). The buffer is transferred. */
-  async stylizePixels(styleId: StyleId, pixels: Uint8ClampedArray, width: number, height: number): Promise<StyleResult> {
+  async stylizePixels(
+    styleId: StyleId,
+    pixels: Uint8ClampedArray,
+    width: number,
+    height: number,
+    opts: { styleKey?: string; alpha?: number } = {},
+  ): Promise<StyleResult> {
     await this.init(styleId);
     const buffer = pixels.buffer as ArrayBuffer;
     const msg = await this.request(
-      { type: "infer", reqId: this.nextId(), styleId, width, height, pixels: buffer },
+      { type: "infer", reqId: this.nextId(), styleId, width, height, pixels: buffer, ...opts },
       [buffer],
     );
     if (msg.type !== "result") throw new StyleError("internal", "unexpected reply");
@@ -116,9 +150,13 @@ export class StyleClient {
     sourceHeight: number,
     maxSide = DEFAULT_MAX_SIDE,
     scratch?: HTMLCanvasElement | OffscreenCanvas,
+    opts: { styleKey?: string; alpha?: number } = {},
   ): Promise<StyleResult> {
-    const fixed = ONNX_MODELS[styleId].fixedSize;
-    const { width, height } = fixed ? { width: fixed[1], height: fixed[0] } : fitWithin(sourceWidth, sourceHeight, maxSide);
+    const spec = ONNX_MODELS[styleId];
+    const fixed = spec.fixedSize;
+    const { width, height } = fixed
+      ? { width: fixed[1], height: fixed[0] }
+      : fitWithin(sourceWidth, sourceHeight, maxSide, spec.sizeMultiple);
     const canvas = scratch ?? new OffscreenCanvas(width, height);
     canvas.width = width;
     canvas.height = height;
@@ -129,7 +167,7 @@ export class StyleClient {
     if (!ctx) throw new StyleError("internal", "2D canvas unavailable");
     ctx.drawImage(source, 0, 0, width, height);
     const { data } = ctx.getImageData(0, 0, width, height);
-    return this.stylizePixels(styleId, data, width, height);
+    return this.stylizePixels(styleId, data, width, height, opts);
   }
 
   dispose() {

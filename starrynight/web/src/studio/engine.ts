@@ -88,6 +88,71 @@ function stylizeImage(src: string, key: string, maxSide = 512): Promise<ImageSty
   return p;
 }
 
+/** Cheap content hash for cache keys (FNV-1a over the string). */
+function hashString(str: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36) + str.length.toString(36);
+}
+
+async function dataUrlToBlob(src: string): Promise<Blob> {
+  return (await fetch(src)).blob();
+}
+
+export interface CustomStyleResult extends ImageStyleResult {
+  /** "browser" = AdaIN ONNX in the worker; "server" = Django /api/v2/adain/image/. */
+  where: "browser" | "server";
+}
+
+const customCache = new Map<string, Promise<CustomStyleResult>>();
+
+/**
+ * Arbitrary style transfer (AdaIN): apply ANY style image to the content.
+ * Runs in the browser; if the model can't run there, falls back to the Django endpoint.
+ */
+function stylizeCustom(contentSrc: string, styleSrc: string, alpha = 1, maxSide = 512): Promise<CustomStyleResult> {
+  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 100) / 100;
+  const styleKey = `style-${hashString(styleSrc)}`;
+  const cacheKey = `${hashString(contentSrc)}|${styleKey}|${a}|${maxSide}`;
+  let p = customCache.get(cacheKey);
+  if (!p) {
+    p = (async (): Promise<CustomStyleResult> => {
+      try {
+        const [img, styleImg] = await Promise.all([loadImage(contentSrc), loadImage(styleSrc)]);
+        const c = getClient();
+        if (!c.hasStyle(styleKey)) await c.setStyleImage(styleKey, styleImg, styleImg.naturalWidth, styleImg.naturalHeight);
+        const res = await c.stylizeSource("adain", img, img.naturalWidth, img.naturalHeight, maxSide, undefined, {
+          styleKey,
+          alpha: a,
+        });
+        const canvas = toCanvas(res);
+        return {
+          dataUrl: canvas.toDataURL("image/jpeg", 0.92),
+          ms: Math.round(res.timings.totalMs),
+          ep: res.ep,
+          width: res.width,
+          height: res.height,
+          where: "browser",
+        };
+      } catch (browserErr) {
+        try {
+          const r = await api.adainImage(await dataUrlToBlob(contentSrc), await dataUrlToBlob(styleSrc), a, maxSide);
+          return { dataUrl: r.image, ms: Math.round(r.ms), ep: "wasm", width: r.width, height: r.height, where: "server" };
+        } catch (serverErr) {
+          throw serverErr instanceof ApiFailure && serverErr.status !== 0 ? serverErr : browserErr;
+        }
+      }
+    })();
+    p.catch(() => customCache.delete(cacheKey));
+    customCache.set(cacheKey, p);
+    while (customCache.size > 24) customCache.delete(customCache.keys().next().value as string);
+  }
+  return p;
+}
+
 /** Warm a style's model so the first click feels instant. */
 function preload(key: string): void {
   const id = styleFor(key);
@@ -329,6 +394,31 @@ const api = {
       body: form,
     });
   },
+  /** Server-side AdaIN on one image (content + style). */
+  adainImage(content: Blob, style: Blob, alpha = 1, maxSide = 768) {
+    const form = new FormData();
+    form.append("content", content, "content.jpg");
+    form.append("style", style, "style.jpg");
+    form.append("alpha", String(alpha));
+    form.append("max_side", String(maxSide));
+    return call<{ image: string; width: number; height: number; ms: number; alpha: number }>("/api/v2/adain/image/", {
+      method: "POST",
+      body: form,
+    });
+  },
+  /** Server-side AdaIN video job with an uploaded style image. Progress via jobStatus(). */
+  async submitAdainVideo(file: Blob, styleSrc: string | Blob, alpha = 1, source = "upload") {
+    const style = typeof styleSrc === "string" ? await dataUrlToBlob(styleSrc) : styleSrc;
+    const form = new FormData();
+    form.append("video", file, (file as File).name || "upload.mp4");
+    form.append("style", style, "style.jpg");
+    form.append("alpha", String(Math.max(0, Math.min(1, alpha))));
+    form.append("source", source);
+    return call<{ job_id: string; status: string; execution_mode: string }>("/api/v2/adain/video/", {
+      method: "POST",
+      body: form,
+    });
+  },
   jobStatus(jobId: string) {
     return call<VideoJobStatus>(`/style_transfer/video-status/${encodeURIComponent(jobId)}/`);
   },
@@ -391,7 +481,7 @@ const gallery = {
   },
 };
 
-const NS = { styleFor, stylizeImage, preload, live, api, auth, gallery, ApiFailure, StyleError };
+const NS = { styleFor, stylizeImage, stylizeCustom, preload, live, api, auth, gallery, ApiFailure, StyleError };
 declare global {
   interface Window {
     NS: typeof NS;

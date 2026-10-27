@@ -1,0 +1,17 @@
+content,style,method,fps,psnr,mae,lpips,style_distance
+butterfly.jpg,starry-night,fixed,5.915,9.825,66.927,,191.375
+butterfly.jpg,starry-night,adain,2.369,11.86,51.668,,91.1042
+butterfly.jpg,wave,fixed,6.01,9.034,77.992,,153.425
+butterfly.jpg,wave,adain,2.141,10.718,62.432,,69.5592
+golden.jpg,starry-night,fixed,6.112,8.79,73.258,,184.1784
+golden.jpg,starry-night,adain,2.18,11.899,49.904,,51.8932
+golden.jpg,wave,fixed,5.811,12.891,45.061,,132.1561
+golden.jpg,wave,adain,1.787,14.0,39.535,,79.2905
+hoover.jpg,starry-night,fixed,7.336,10.099,60.886,,184.0129
+hoover.jpg,starry-night,adain,2.6,13.005,45.552,,63.9905
+hoover.jpg,wave,fixed,6.481,6.353,111.063,,133.2868
+hoover.jpg,wave,adain,2.937,9.112,80.687,,98.6418
+town.jpg,starry-night,fixed,5.403,11.669,53.891,,180.8669
+town.jpg,starry-night,adain,1.958,14.896,36.362,,64.181
+town.jpg,wave,fixed,5.038,10.119,64.841,,139.8827
+town.jpg,wave,adain,1.9,14.086,39.604,,94.2387

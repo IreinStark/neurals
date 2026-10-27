@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import type { FromWorker, ToWorker } from "@/contracts/worker";
 import { StyleClient, StyleError, type WorkerLike } from "./styleClient";
 
@@ -20,6 +20,8 @@ class FakeWorker implements WorkerLike {
     if (msg.type === "init") {
       if (this.failInit) this.reply({ type: "error", reqId: msg.reqId, code: "model_missing", message: "404" });
       else this.reply({ type: "ready", reqId: msg.reqId, styleId: msg.styleId, ep: "wasm", loadMs: 1 });
+    } else if (msg.type === "style") {
+      this.reply({ type: "styleReady", reqId: msg.reqId, key: msg.key });
     } else if (msg.type === "infer") {
       const px = new Uint8ClampedArray(msg.pixels).map((v, i) => (i % 4 === 3 ? v : 255 - v));
       this.reply({
@@ -36,7 +38,25 @@ class FakeWorker implements WorkerLike {
   }
 }
 
+/** jsdom has no OffscreenCanvas; a minimal stand-in that returns blank pixels. */
+class OffscreenCanvasStub {
+  constructor(
+    public width: number,
+    public height: number,
+  ) {}
+  getContext() {
+    return {
+      drawImage: () => undefined,
+      getImageData: (_x: number, _y: number, w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+    };
+  }
+}
+
 describe("StyleClient", () => {
+  beforeAll(() => {
+    (globalThis as unknown as { OffscreenCanvas: unknown }).OffscreenCanvas = OffscreenCanvasStub;
+  });
+
   it("initialises a style once and reports the execution provider", async () => {
     const w = new FakeWorker();
     const client = new StyleClient(w);
@@ -55,6 +75,20 @@ describe("StyleClient", () => {
     expect(infer.transfer?.[0]).toBe(pixels.buffer);
     expect(Array.from(res.pixels)).toEqual([245, 235, 225, 255]);
     expect(res.timings.totalMs).toBe(4);
+  });
+
+  it("sends an AdaIN style image once and references it by key", async () => {
+    const w = new FakeWorker();
+    const client = new StyleClient(w);
+    const style = new OffscreenCanvasStub(40, 30) as unknown as CanvasImageSource;
+    await client.setStyleImage("painting-1", style, 40, 30);
+    expect(client.hasStyle("painting-1")).toBe(true);
+    const styleMsg = w.sent.find((s) => s.msg.type === "style")!;
+    expect(styleMsg.msg).toMatchObject({ key: "painting-1", width: 40, height: 24 }); // snapped to multiples of 8
+    expect(styleMsg.transfer).toHaveLength(1);
+
+    await client.stylizePixels("adain", new Uint8ClampedArray(4), 1, 1, { styleKey: "painting-1", alpha: 0.6 });
+    expect(w.sent.find((s) => s.msg.type === "infer")!.msg).toMatchObject({ styleKey: "painting-1", alpha: 0.6 });
   });
 
   it("rejects with the worker's error code and retries init next time", async () => {

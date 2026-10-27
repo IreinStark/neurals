@@ -397,7 +397,10 @@ def temporal_metrics(
                 (next_stylized.shape[1], next_stylized.shape[0]),
                 interpolation=cv2.INTER_AREA,
             )
-        flow = dense_flow(prev_source, next_source)
+        # Backward flow (next -> prev): for each pixel of frame t+1, where it came from in frame t.
+        # cv2.remap samples the source at grid + flow, so this aligns frame t onto frame t+1.
+        # (Using forward flow here mis-aligns motion and scores worse than not warping at all.)
+        flow = dense_flow(next_source, prev_source)
         warped_prev, valid_mask = warp_frame_with_flow(prev_stylized, flow)
 
         valid_mask_3 = np.repeat(valid_mask[:, :, None], 3, axis=2)

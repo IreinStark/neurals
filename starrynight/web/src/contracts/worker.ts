@@ -27,6 +27,20 @@ export type ToWorker =
       /** RGBA Uint8 pixels, transferred. */
       pixels: ArrayBuffer;
       maxSide?: number;
+      /** Arbitrary-style models: key of a style image sent earlier with "style". */
+      styleKey?: string;
+      /** Arbitrary-style models: content↔style blend in [0, 1] (default 1). */
+      alpha?: number;
+    }
+  | {
+      /** Register a style image once (cached in the worker by key), e.g. an uploaded painting. */
+      type: "style";
+      reqId: string;
+      key: string;
+      width: number;
+      height: number;
+      /** RGBA Uint8 pixels, transferred. */
+      pixels: ArrayBuffer;
     }
   | { type: "cancel"; reqId: string }
   | { type: "dispose"; styleId?: StyleId };
@@ -42,6 +56,7 @@ export type WorkerErrorCode = "model_missing" | "ep_unavailable" | "oom" | "canc
 
 export type FromWorker =
   | { type: "ready"; reqId: string; styleId: StyleId; ep: ExecutionProvider; loadMs: number }
+  | { type: "styleReady"; reqId: string; key: string }
   | {
       type: "result";
       reqId: string;

@@ -1,0 +1,6 @@
+# Optional extras for the evaluation scripts (scripts/evaluate_*.py).
+# LPIPS downloads its VGG backbone from download.pytorch.org on first use.
+-r ../requirements.txt
+lpips==0.1.4
+onnx>=1.15
+onnxruntime>=1.17
