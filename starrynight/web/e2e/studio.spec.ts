@@ -121,6 +121,55 @@ test.describe("Neural Style Studio", () => {
     await expect(page).toHaveURL(/#\/image/, { timeout: 10_000 });
   });
 
+  test("signed-in gallery comes from the server and shares a public link", async ({ page, browser }) => {
+    const work = {
+      id: 7, title: "Golden Gate — Starry Night", kind: "image", style: "starry", media_url: "/media/gallery/7/a.jpg",
+      poster_url: null, duration: "", likes: 2, views: 5, liked: false, created_at: "2026-10-27T08:00:00Z",
+      client_id: "abc", share_token: null, size_bytes: 120000, shared: false, owner: { name: "Irein" },
+    };
+    const stats = { works: 1, views: 5, favorites: 0, used_bytes: 120000, quota_bytes: 1073741824 };
+    await page.addInitScript(() =>
+      localStorage.setItem("ns.session", JSON.stringify({ email: "irein@neu.edu.tr", access: "a.b.c", refresh: "d.e.f" })),
+    );
+    await page.route("**/api/v2/gallery/?*", (r) => r.fulfill({ json: { works: [work], stats } }));
+    await page.route("**/api/v2/gallery/", (r) => r.fulfill({ json: { works: [work], stats } }));
+    let liked = false;
+    await page.route("**/api/v2/gallery/7/like/", (r) => {
+      liked = true;
+      return r.fulfill({ json: { liked: true, likes: 3 } });
+    });
+    await page.route("**/api/v2/gallery/7/share/", (r) =>
+      r.fulfill({ json: { token: "tok123", url: "x", page_url: "y" } }),
+    );
+    await page.route("**/media/gallery/7/a.jpg", (r) => r.fulfill({ contentType: "image/svg+xml", body: "<svg xmlns='http://www.w3.org/2000/svg'/>" }));
+
+    await page.goto("/#/gallery");
+    await expect(page.locator("#gag article")).toHaveCount(1); // demo works are not shown to signed-in users
+    await expect(page.locator("#gag h3")).toHaveText("Golden Gate — Starry Night");
+    await expect(page.getByText("117 KB of 1.0 GB used")).toBeVisible();
+
+    await page.locator("#gag .lk").click();
+    await expect.poll(() => liked).toBe(true);
+
+    await page.locator("#gag article").hover();
+    await page.locator("#gag .ga[data-c=share]").click();
+    await expect(page.locator("#shareUrl")).toHaveValue(/\/s\/tok123\/$/);
+
+    const anon = await browser.newPage();
+    await anon.route("**/api/v2/share/tok123/", (r) => r.fulfill({ json: { ...work, views: 6 } }));
+    await anon.route("**/media/gallery/7/a.jpg", (r) => r.fulfill({ contentType: "image/svg+xml", body: "<svg xmlns='http://www.w3.org/2000/svg'/>" }));
+    await anon.goto("/#/share/tok123");
+    await expect(anon.locator("main h1")).toHaveText("Golden Gate — Starry Night", { timeout: 10_000 });
+    await expect(anon.locator("main .btn-accent.rounded-full").first()).toHaveText("I");
+    await anon.close();
+  });
+
+  test("a removed share link says so", async ({ page }) => {
+    await page.route("**/api/v2/share/gone/", (r) => r.fulfill({ status: 404, json: { detail: "Not found." } }));
+    await page.goto("/#/share/gone");
+    await expect(page.locator("main h1")).toHaveText("This link is no longer available", { timeout: 10_000 });
+  });
+
   test("saved works persist in the gallery across reloads", async ({ page }) => {
     await page.goto("/#/image");
     await expect(page.locator("#tg")).toHaveText(/ms ·/, { timeout: 90_000 });

@@ -25,7 +25,7 @@ SECRET_KEY = "django-insecure-o+p)_g!fyx!5a@&i-#@&@x(urrex&nh!61kehyg)gi+-38x3ci
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"] + [h for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h]
 
 CORS_ORIGIN_WHITELIST = (
     "http://localhost:3000",
@@ -141,6 +141,31 @@ USE_TZ = True
 STATIC_URL = "/static/"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Gallery (GP2 feature 3). Per-user storage quota and the public origin used in share links.
+GALLERY_QUOTA_BYTES = int(float(os.environ.get("GALLERY_QUOTA_MB", "1024")) * 1024 * 1024)
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "")
+# The studio reaches Django through the Next.js proxy, so share links should use the forwarded host.
+USE_X_FORWARDED_HOST = os.environ.get("USE_X_FORWARDED_HOST", "true").lower() == "true"
+
+# Cloud storage: MEDIA_STORAGE=s3 stores uploads in any S3-compatible bucket (AWS S3, Supabase Storage,
+# Cloudflare R2, MinIO) via django-storages; the default keeps files on local disk under MEDIA_ROOT.
+if os.environ.get("MEDIA_STORAGE", "").lower() == "s3":
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "bucket_name": os.environ["S3_BUCKET"],
+                "endpoint_url": os.environ.get("S3_ENDPOINT_URL") or None,
+                "region_name": os.environ.get("S3_REGION") or None,
+                "access_key": os.environ.get("S3_ACCESS_KEY_ID"),
+                "secret_key": os.environ.get("S3_SECRET_ACCESS_KEY"),
+                "querystring_auth": False,
+                "file_overwrite": False,
+            },
+        },
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
 
 CACHE_URL = os.environ.get("CACHE_URL", "redis://127.0.0.1:6379/1")
 # Default to locmem so the app starts without Redis in development.

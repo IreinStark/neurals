@@ -318,7 +318,33 @@ function flattenErrors(body: unknown): string | null {
   return parts.length ? parts.join(" ") : null;
 }
 
-async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+/** Access tokens live 5 minutes; swap the refresh token for a new one (once, shared by concurrent calls). */
+let refreshing: Promise<boolean> | null = null;
+function refreshAccess(): Promise<boolean> {
+  const s = memorySession;
+  if (!s?.refresh) return Promise.resolve(false);
+  refreshing ??= fetch("/accounts/login/refresh/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ refresh: s.refresh }),
+  })
+    .then(async (r) => {
+      if (!r.ok) {
+        if (r.status === 401) writeSession(null); // refresh token expired: signed out
+        return false;
+      }
+      const t = (await r.json()) as { access: string; refresh?: string };
+      writeSession({ ...s, access: t.access, refresh: t.refresh ?? s.refresh });
+      return true;
+    })
+    .catch(() => false)
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
+}
+
+async function call<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
@@ -328,6 +354,9 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     res = await fetch(path, { ...init, headers });
   } catch {
     throw new ApiFailure(OFFLINE, 0);
+  }
+  if (res.status === 401 && !retried && memorySession && !path.includes("/accounts/login/") && (await refreshAccess())) {
+    return call<T>(path, init, true);
   }
   const text = await res.text();
   let body: unknown = null;
@@ -437,7 +466,57 @@ const api = {
 };
 
 // --------------------------------------------------------------- gallery ---
-/** Persists works the user saves (the design's in-memory list survives reloads). */
+/**
+ * The design's gallery list (`W` in the page). Signed in → stored on the server (Django `Artwork`, cloud/disk
+ * storage, likes, views, public share links). Signed out → IndexedDB in this browser; those works are
+ * uploaded automatically the next time the gallery loads while signed in.
+ */
+export interface Work {
+  id: string;
+  t: string;
+  s: string;
+  type: "image" | "video" | "webcam";
+  ic?: string;
+  pill?: string;
+  likes: number;
+  views: number;
+  fav: boolean;
+  age?: string;
+  src?: string;
+  video?: string;
+  vid?: Blob;
+  pre?: boolean;
+  dur?: string;
+  savedAt?: number;
+  k?: string;
+  sid?: number; // server id
+  token?: string | null; // share token
+  liked?: boolean; // like state the server last confirmed
+}
+interface ServerWork {
+  id: number;
+  title: string;
+  kind: Work["type"];
+  style: string;
+  media_url: string;
+  poster_url: string | null;
+  duration: string;
+  likes: number;
+  views: number;
+  liked?: boolean;
+  created_at: string;
+  client_id?: string;
+  share_token?: string | null;
+  owner?: { name: string };
+}
+export interface GalleryStats {
+  works: number;
+  views: number;
+  favorites: number;
+  used_bytes: number;
+  quota_bytes: number;
+}
+
 const DB_NAME = "neural-style";
 const STORE = "works";
 function db(): Promise<IDBDatabase> {
@@ -456,23 +535,26 @@ async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBReq
     r.onerror = () => reject(r.error);
   });
 }
-const gallery = {
-  async load<T extends { savedAt?: number }>(): Promise<T[]> {
+const local = {
+  async all(): Promise<Work[]> {
     try {
-      const all = await tx<T[]>("readonly", (s) => s.getAll() as IDBRequest<T[]>);
-      return all.sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0));
+      return await tx<Work[]>("readonly", (s) => s.getAll() as IDBRequest<Work[]>);
     } catch {
       return [];
     }
   },
-  async save(work: { id: string }) {
+  async put(w: Work) {
     try {
-      await tx("readwrite", (s) => s.put({ ...work, savedAt: Date.now() }));
+      const rest: Partial<Work> = { ...w, savedAt: w.savedAt ?? Date.now() };
+      delete rest.sid; // server fields don't belong in the offline copy
+      delete rest.token;
+      delete rest.liked;
+      await tx("readwrite", (s) => s.put(rest));
     } catch {
       // storage unavailable: work stays in memory for this session
     }
   },
-  async remove(id: string) {
+  async del(id: string) {
     try {
       await tx("readwrite", (s) => s.delete(id));
     } catch {
@@ -480,6 +562,167 @@ const gallery = {
     }
   },
 };
+
+const KIND_UI: Record<Work["type"], { ic: string; pill: string }> = {
+  image: { ic: "brush", pill: "Image" },
+  video: { ic: "movie", pill: "Video" },
+  webcam: { ic: "videocam", pill: "Webcam" },
+};
+
+function fromServer(a: ServerWork): Work {
+  const isImage = a.kind === "image";
+  return {
+    id: a.client_id || `a${a.id}`,
+    sid: a.id,
+    t: a.title,
+    s: a.style || "starry",
+    type: a.kind,
+    ...KIND_UI[a.kind],
+    likes: a.likes,
+    views: a.views,
+    fav: !!a.liked,
+    liked: !!a.liked,
+    age: new Date(a.created_at).toLocaleDateString(),
+    src: (isImage ? a.media_url : a.poster_url) ?? a.media_url,
+    video: isImage ? undefined : a.media_url,
+    pre: true,
+    dur: a.duration || undefined,
+    savedAt: Date.parse(a.created_at),
+    token: a.share_token ?? null,
+  };
+}
+
+async function toBlob(src: string): Promise<Blob> {
+  return src.startsWith("data:") ? dataUrlToBlob(src) : (await fetch(src)).blob();
+}
+
+/** id → server copy, so remove(id) / share() can find the server record the page doesn't know about. */
+const known = new Map<string, Work>();
+let owner: string | null = null;
+
+async function upload(w: Work): Promise<Work> {
+  const form = new FormData();
+  const isImage = w.type === "image";
+  const media = w.vid ?? (isImage && w.src ? await toBlob(w.src) : null);
+  if (!media) throw new ApiFailure("Nothing to upload for this work.", 400);
+  const ext = media.type.includes("webm") ? "webm" : media.type.includes("mp4") ? "mp4" : media.type.includes("png") ? "png" : "jpg";
+  form.append("media", media, `work.${ext}`);
+  if (!isImage && w.src?.startsWith("data:")) form.append("poster", await dataUrlToBlob(w.src), "poster.jpg");
+  form.append("kind", w.type);
+  form.append("title", w.t);
+  form.append("style", w.s ?? "");
+  if (w.dur) form.append("duration", w.dur);
+  form.append("client_id", w.id);
+  return fromServer(await call<ServerWork>("/api/v2/gallery/", { method: "POST", body: form }));
+}
+
+const gallery = {
+  stats: null as GalleryStats | null,
+  /** Whose gallery `load()` last returned ("" = this browser only). */
+  get owner() {
+    return owner;
+  },
+  async load(): Promise<Work[]> {
+    const email = memorySession?.email ?? "";
+    owner = email;
+    const offline = (await local.all()).sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0));
+    if (!email) {
+      gallery.stats = null;
+      return offline;
+    }
+    // works saved while signed out (or when the server was unreachable) move to the account
+    for (const w of offline) {
+      try {
+        await upload(w);
+        await local.del(w.id);
+      } catch (e) {
+        if (e instanceof ApiFailure && e.status === 413) break; // quota full: keep them local
+      }
+    }
+    try {
+      const res = await call<{ works: ServerWork[]; stats: GalleryStats }>("/api/v2/gallery/");
+      gallery.stats = res.stats;
+      known.clear();
+      const works = res.works.map(fromServer);
+      works.forEach((w) => known.set(w.id, w));
+      const pending = (await local.all()).filter((w) => !known.has(w.id));
+      return [...pending, ...works];
+    } catch {
+      return offline; // backend down: show what this browser has
+    }
+  },
+  /** Called by the page after saving or liking a work. Mutates `w` with the server's answer. */
+  async save(w: Work): Promise<Work> {
+    if (!memorySession) {
+      await local.put(w);
+      return w;
+    }
+    try {
+      const prev = w.sid ? w : known.get(w.id);
+      if (!prev?.sid) {
+        const saved = await upload(w);
+        Object.assign(w, { sid: saved.sid, token: saved.token, liked: false, video: saved.video ?? w.video });
+        known.set(w.id, w);
+        void refreshStats();
+      }
+      if (w.sid && w.fav !== !!w.liked) {
+        const r = await call<{ liked: boolean; likes: number }>(`/api/v2/gallery/${w.sid}/like/`, { method: "POST" });
+        Object.assign(w, { liked: r.liked, fav: r.liked, likes: r.likes });
+      }
+    } catch (e) {
+      if (!w.sid) await local.put(w); // keep it; uploaded on the next load
+      window.dispatchEvent(new CustomEvent("ns:gallery-error", { detail: e instanceof Error ? e.message : String(e) }));
+    }
+    return w;
+  },
+  async remove(id: string) {
+    await local.del(id);
+    const w = known.get(id);
+    if (w?.sid && memorySession) {
+      known.delete(id);
+      try {
+        await call(`/api/v2/gallery/${w.sid}/`, { method: "DELETE" });
+      } catch (e) {
+        window.dispatchEvent(new CustomEvent("ns:gallery-error", { detail: e instanceof Error ? e.message : String(e) }));
+      }
+      void refreshStats();
+    }
+  },
+  /** Public link for a work (uploads it first if needed). Needs an account. */
+  async share(w: Work): Promise<string> {
+    if (!memorySession) throw new ApiFailure("Sign in to share your work.", 401);
+    if (!w.sid) {
+      const k = known.get(w.id);
+      if (k?.sid) w.sid = k.sid;
+      else Object.assign(w, await upload(w), { id: w.id, src: w.src });
+      known.set(w.id, w);
+    }
+    const r = await call<{ token: string }>(`/api/v2/gallery/${w.sid}/share/`, { method: "POST" });
+    w.token = r.token;
+    return `${location.origin}/s/${r.token}/`;
+  },
+  async unshare(w: Work) {
+    if (w.sid) await call(`/api/v2/gallery/${w.sid}/share/`, { method: "DELETE" });
+    w.token = null;
+  },
+  /** A work someone shared (public, no login). null if the link was removed. */
+  async shared(token: string): Promise<(Work & { by?: string }) | null> {
+    try {
+      const a = await call<ServerWork>(`/api/v2/share/${encodeURIComponent(token)}/`);
+      return { ...fromServer(a), id: token, by: a.owner?.name };
+    } catch {
+      return null;
+    }
+  },
+};
+
+async function refreshStats() {
+  try {
+    gallery.stats = (await call<{ stats: GalleryStats }>("/api/v2/gallery/?sort=newest")).stats;
+  } catch {
+    // keep the last numbers
+  }
+}
 
 const NS = { styleFor, stylizeImage, stylizeCustom, preload, live, api, auth, gallery, ApiFailure, StyleError };
 declare global {
