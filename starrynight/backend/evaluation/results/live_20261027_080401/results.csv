@@ -1,0 +1,6 @@
+mode,style,max_side,temporal,frames_captured,frames_returned,fps_out,latency_ms_p50,latency_ms_p95,server_infer_ms,server_pipeline_ms,final_side,dropped_pct,time_to_first_frame_s
+live WebRTC,starry-night,160,True,300,110,10.9,178.3,216.9,57.4,72.4,160,63.3,
+live WebRTC,starry-night,256,True,300,46,4.8,294.5,381.6,103.8,120.8,256,84.7,
+live WebRTC,starry-night,384,True,300,28,2.7,512.9,632.4,201.4,215.0,384,90.7,
+live WebRTC,starry-night,adaptive,True,299,100,10.1,196.5,243.5,60.1,77.0,192,66.6,
+async upload job (GP1),starry-night,,True,300,300,7.1,,,,,,0.0,42.05

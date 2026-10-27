@@ -59,3 +59,38 @@ remove it without blurring the image. That needs a temporally trained network (R
 
 The design's Video Upload "Pipeline Info" card used to show "ReCoNet + Optical Flow" and "4.13 (3.4× better)".
 It now shows the measured values.
+
+## 5. Trial: temporal fine-tuning with ReCoNet's losses (negative result)
+
+**Why.** The repo's `reconet.pth` can't be fixed, because it was never trained. Its weights are statistically
+indistinguishable from PyTorch's random initialisation:
+- conv std 0.038 vs 0.037 untrained;
+- instance-norm scales ≈ 1.0, biases ≈ 0;
+- the largest pre-tanh output for a 0–255 input is about 2.4, and `tanh(x/255)·150 + 127.5` maps that to flat grey.
+
+The GP1 training script saves every 1,000 iterations on FlyingChairs. The committed file is an early save, and
+no other version exists in any branch or in the team submission repo (`aiiotcenter/ai-driven-style-transfer-for-video`).
+
+**What we tried** (`scripts/train_temporal.py`). ReCoNet's encoder and decoder are the same Johnson network as our
+TransformerNet, so we warm-started from the trained starry-night model and fine-tuned with ReCoNet's temporal losses:
+- the output temporal loss with its luminance term;
+- the feature temporal loss on the encoder output.
+
+A frozen copy of the original model acted as teacher (VGG perceptual + Gram loss) to keep the style. FlyingChairs
+and Sintel can't be downloaded in our environment, so frame pairs were synthesized: photo crops with random camera
+motion (±8 px, ±2.5°, ±4 % zoom), per-frame sensor noise and exposure jitter, giving an exact flow and occlusion mask.
+
+**Results** (TWE, lower is better; same harness as §3):
+
+| Model | Pan clip | Real camera clip (OpenCV `vtest.avi`) |
+|---|---|---|
+| starry-night (original) | 29.53 | 8.60 |
+| + 500 steps, temporal weight 1×, lr 2e-4 | 29.44 (−0.3 %) | 8.54 (−0.8 %) |
+| + 500 steps, temporal weight 10×, lr 5e-4 | 29.10 (−1.4 %) | 8.40 (−2.4 %) |
+| original + inference-time stabilization (§2) | 23.56 (−20 %) | 7.06 (−18 %) |
+
+**Conclusion.** On a 2-core CPU (~1.3 s/step) with synthetic motion, temporal training gives only a marginal
+improvement. Inference-time flow-guided stabilization gives ten times more for free. A real ReCoNet needs GPU
+training on an optical-flow video dataset (FlyingChairs/Sintel, tens of thousands of steps). That's GP2 future work;
+the trainer script is ready for it (`--images` can point at extracted video frames, and the loss terms are
+ReCoNet's). We didn't ship the fine-tuned checkpoint because its gain is within noise.
